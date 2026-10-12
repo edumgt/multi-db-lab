@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.adapters.api.auth_router import router as auth_router
 from backend.adapters.api.deps import build_auth_usecase
+from backend.adapters.api.docs_router import router as docs_router
 from backend.adapters.api.employee_router import router as employee_router
 from backend.adapters.api.error_handlers import register_error_handlers
 from backend.adapters.api.lab_router import router as lab_router
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(post_router)
     app.include_router(employee_router)
     app.include_router(lab_router)
+    app.include_router(docs_router)
 
     @app.get("/api/health")
     def health() -> dict[str, object]:

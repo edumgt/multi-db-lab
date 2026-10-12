@@ -1,20 +1,24 @@
 // Canvas 기반 멀티 DB 엔진 — DB 아이콘을 Grid 노드에 연결하면 해당 DB의 레코드를 가져와 합쳐서 보여준다.
 // $(), api(), setMessage() 는 app.js 에서 정의된 전역 헬퍼를 그대로 재사용한다.
 
+// icon: 팔레트 버튼용 Font Awesome 클래스 · glyph/brand: 캔버스에 fillText 로 그릴 유니코드 글리프
 const DB_META = {
-  postgresql: { label: "PostgreSQL", emoji: "🐘", endpoint: "/lab/postgres/records", compatible: true },
-  mongodb: { label: "MongoDB", emoji: "🍃", endpoint: "/lab/mongo/records", compatible: true },
-  supabase: { label: "Supabase", emoji: "⚡", endpoint: "/lab/supabase/records", compatible: true },
-  redis: { label: "Redis", emoji: "🟥", endpoint: "/lab/redis/records", compatible: true },
-  opensearch: { label: "OpenSearch", emoji: "🔍", endpoint: "/lab/opensearch/records", compatible: true },
-  clickhouse: { label: "ClickHouse", emoji: "🟧", endpoint: "/lab/clickhouse/records", compatible: true },
-  cassandra: { label: "Cassandra", emoji: "👁️", endpoint: "/lab/cassandra/records", compatible: true },
-  dynamodb: { label: "DynamoDB", emoji: "🔶", endpoint: null, compatible: false, reason: "Employee" },
-  pinecone: { label: "Pinecone", emoji: "🌲", endpoint: null, compatible: false, reason: "Vector" },
-  weaviate: { label: "Weaviate", emoji: "🟣", endpoint: null, compatible: false, reason: "Vector" },
-  neo4j: { label: "Neo4j", emoji: "🕸️", endpoint: null, compatible: false, reason: "Graph" },
-  qdrant: { label: "Qdrant", emoji: "🔵", endpoint: null, compatible: false, reason: "Vector" },
+  postgresql: { label: "PostgreSQL", icon: "fa-solid fa-database", glyph: "\uf1c0", endpoint: "/lab/postgres/records", compatible: true },
+  mongodb: { label: "MongoDB", icon: "fa-solid fa-leaf", glyph: "\uf06c", endpoint: "/lab/mongo/records", compatible: true },
+  supabase: { label: "Supabase", icon: "fa-solid fa-bolt", glyph: "\uf0e7", endpoint: "/lab/supabase/records", compatible: true },
+  redis: { label: "Redis", icon: "fa-solid fa-memory", glyph: "\uf538", endpoint: "/lab/redis/records", compatible: true },
+  opensearch: { label: "OpenSearch", icon: "fa-solid fa-magnifying-glass", glyph: "\uf002", endpoint: "/lab/opensearch/records", compatible: true },
+  clickhouse: { label: "ClickHouse", icon: "fa-solid fa-chart-column", glyph: "\ue0e3", endpoint: "/lab/clickhouse/records", compatible: true },
+  cassandra: { label: "Cassandra", icon: "fa-solid fa-layer-group", glyph: "\uf5fd", endpoint: "/lab/cassandra/records", compatible: true },
+  dynamodb: { label: "DynamoDB", icon: "fa-brands fa-aws", glyph: "\uf375", brand: true, endpoint: null, compatible: false, reason: "Employee" },
+  pinecone: { label: "Pinecone", icon: "fa-solid fa-tree", glyph: "\uf1bb", endpoint: null, compatible: false, reason: "Vector" },
+  weaviate: { label: "Weaviate", icon: "fa-solid fa-circle-nodes", glyph: "\ue4e2", endpoint: null, compatible: false, reason: "Vector" },
+  neo4j: { label: "Neo4j", icon: "fa-solid fa-diagram-project", glyph: "\uf542", endpoint: null, compatible: false, reason: "Graph" },
+  qdrant: { label: "Qdrant", icon: "fa-solid fa-vector-square", glyph: "\uf5cb", endpoint: null, compatible: false, reason: "Vector" },
 };
+
+const FA_SOLID = '900 18px "Font Awesome 6 Free"';
+const FA_BRANDS = '400 18px "Font Awesome 6 Brands"';
 
 const NODE_RADIUS = 32;
 const LAYOUT_KEY = "engineLayout";
@@ -125,10 +129,12 @@ function drawGridNode() {
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#fff";
-  ctx.font = "14px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("📊 Grid", gridNode.x, gridNode.y - 6);
+  ctx.font = '900 14px "Font Awesome 6 Free"';
+  ctx.fillText("\uf0ce", gridNode.x - 24, gridNode.y - 6);
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText("Grid", gridNode.x + 8, gridNode.y - 6);
   ctx.font = "10px sans-serif";
   ctx.fillText(`${totalRowCount()}건 합계`, gridNode.x, gridNode.y + 12);
   ctx.restore();
@@ -172,11 +178,12 @@ function drawNode(node) {
   ctx.stroke();
   ctx.restore();
 
-  ctx.fillStyle = "#0f172a";
+  ctx.fillStyle = color.stroke;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = "18px sans-serif";
-  ctx.fillText(meta.emoji, node.x, node.y - 8);
+  ctx.font = meta.brand ? FA_BRANDS : FA_SOLID;
+  ctx.fillText(meta.glyph, node.x, node.y - 8);
+  ctx.fillStyle = "#0f172a";
   ctx.font = "10px sans-serif";
   ctx.fillText(meta.label, node.x, node.y + 14);
   if (node.status === "connected") {
@@ -326,10 +333,10 @@ function buildPalette() {
   const container = $("enginePalette");
   Object.entries(DB_META).forEach(([key, meta]) => {
     const btn = document.createElement("button");
-    btn.textContent = `${meta.emoji} ${meta.label}`;
+    btn.innerHTML = `<i class="${meta.icon}"></i> ${meta.label}`;
     btn.className = meta.compatible
-      ? "text-xs px-3 py-2 rounded-full border border-emerald-500 bg-emerald-50"
-      : "text-xs px-3 py-2 rounded-full border border-dashed border-slate-400 bg-slate-50 text-slate-500";
+      ? "inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-emerald-500 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+      : "inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-dashed border-slate-400 bg-slate-50 text-slate-500 hover:bg-slate-100";
     btn.onclick = () => addNode(key);
     container.appendChild(btn);
   });
@@ -420,22 +427,13 @@ function initEngine() {
   loadLayout();
   render();
   engineInitialized = true;
+  // 아이콘 폰트가 아직 로드 전이면 글리프가 빈 사각형으로 그려지므로 로드 후 한 번 더 그린다.
+  if (document.fonts && document.fonts.load) {
+    Promise.all([document.fonts.load(FA_SOLID), document.fonts.load(FA_BRANDS)]).then(render).catch(() => {});
+  }
 }
 
-function showPostsTab() {
-  $("postsView").classList.remove("hidden");
-  $("engineView").classList.add("hidden");
-  $("tabPosts").className = "px-3 py-2 rounded bg-indigo-600 text-white text-sm";
-  $("tabEngine").className = "px-3 py-2 rounded bg-slate-200 text-sm";
-}
-
-function showEngineTab() {
-  $("postsView").classList.add("hidden");
-  $("engineView").classList.remove("hidden");
-  $("tabEngine").className = "px-3 py-2 rounded bg-indigo-600 text-white text-sm";
-  $("tabPosts").className = "px-3 py-2 rounded bg-slate-200 text-sm";
+// usecases.js 의 "멀티 DB 엔진" 메뉴가 호출 — 패널이 처음 열릴 때 한 번만 초기화한다.
+window.ensureEngine = () => {
   if (!engineInitialized) initEngine();
-}
-
-$("tabPosts").onclick = showPostsTab;
-$("tabEngine").onclick = showEngineTab;
+};

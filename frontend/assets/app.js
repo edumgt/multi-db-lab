@@ -1,3 +1,6 @@
+// 공통 코어 — 인증 · API 헬퍼 · PostgreSQL 게시판(ORM) 패널.
+// usecases.js / engine.js / docs.js 는 여기서 정의한 $(), api(), setMessage(), withLoading() 을 재사용한다.
+
 const API_BASE = "";
 const $ = (id) => document.getElementById(id);
 
@@ -39,15 +42,14 @@ const columnDefs = [
 ];
 
 function setMessage(targetId, message = "") {
-  $(targetId).textContent = message;
+  const el = $(targetId);
+  if (el) el.textContent = message;
 }
 
 function setLoading(loading) {
   state.loading = loading;
-  const disabled = loading ? "true" : "false";
-  ["btnLogin", "btnSearch", "btnNew", "btnLogout", "btnSave"].forEach((id) => {
-    const element = $(id);
-    if (element) element.disabled = disabled === "true";
+  document.querySelectorAll('button[class*="btn-"]:not(.btn-icon)').forEach((element) => {
+    element.disabled = loading;
   });
 }
 
@@ -62,8 +64,12 @@ async function api(path, options = {}) {
     throw new Error("로그인이 필요합니다.");
   }
 
+  if (response.status === 204) return null;
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "요청 실패");
+  if (!response.ok) {
+    const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data);
+    throw new Error(detail || `요청 실패 (${response.status})`);
+  }
   return data;
 }
 
@@ -95,7 +101,6 @@ async function login() {
 
     await loadMe();
     showApp();
-    await loadPosts();
   }).catch((error) => {
     setMessage("loginMsg", error.message);
   });
@@ -103,7 +108,7 @@ async function login() {
 
 async function loadMe() {
   const me = await api("/api/auth/me");
-  $("me").textContent = `로그인: ${me.username}`;
+  $("me").querySelector("span").textContent = me.username;
 }
 
 async function loadPosts() {
@@ -167,6 +172,8 @@ async function removePost(id) {
 function showApp() {
   $("loginView").classList.add("hidden");
   $("appView").classList.remove("hidden");
+  // usecases.js 가 정의 — 마지막으로 보던 사용 사례 패널을 연다.
+  if (typeof window.onAppShown === "function") window.onAppShown();
 }
 
 function logout() {
@@ -208,7 +215,6 @@ initGrid();
 if (state.token) {
   loadMe()
     .then(showApp)
-    .then(loadPosts)
     .catch(() => {
       setMessage("loginMsg", "다시 로그인해 주세요.");
       logout();

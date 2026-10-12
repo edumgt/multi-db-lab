@@ -4,80 +4,332 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FastAPI + PostgreSQL + AG Grid</title>
+  <title>Multi-DB Lab — 데이터베이스 사용 사례</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: { 50: "#eef2ff", 100: "#e0e7ff", 200: "#c7d2fe", 600: "#4f46e5", 700: "#4338ca", 900: "#312e81" } },
+          fontFamily: { sans: ["Pretendard", "Inter", "Noto Sans KR", "system-ui", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+  <style type="text/tailwindcss">
+    @layer components {
+      .btn { @apply inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white transition disabled:opacity-50 disabled:cursor-not-allowed; }
+      .btn-primary { @apply btn bg-brand-600 hover:bg-brand-700; }
+      .btn-dark { @apply btn bg-slate-800 hover:bg-slate-900; }
+      .btn-success { @apply btn bg-emerald-600 hover:bg-emerald-700; }
+      .btn-ghost { @apply btn bg-slate-100 text-slate-700 hover:bg-slate-200; }
+      .btn-icon { @apply inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:bg-slate-100 transition disabled:opacity-30; }
+      .field { @apply w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-600; }
+      .card { @apply bg-white rounded-2xl shadow-sm border border-slate-200; }
+      .card-title { @apply font-semibold text-sm text-slate-800 flex items-center gap-2; }
+      .chip { @apply inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-brand-200 bg-brand-50 text-brand-900 hover:bg-brand-100 transition; }
+      .nav-group { @apply text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 pt-4 pb-1; }
+      .nav-item { @apply flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-brand-50 transition; }
+      .nav-item.active { @apply bg-brand-600 text-white shadow-sm; }
+      .nav-item.active .nav-sub { @apply text-brand-200; }
+      .nav-item .nav-icon { @apply w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0; }
+      .nav-sub { @apply block text-[11px] text-slate-500 leading-tight; }
+      .grid-box { @apply w-full bg-white rounded-2xl border border-slate-200 overflow-hidden; }
+      .console { @apply text-xs font-mono bg-slate-900 text-slate-100 rounded-xl p-3 min-h-10 whitespace-pre-wrap; }
+      .doc-item { @apply w-full text-left px-3 py-2.5 rounded-xl border border-transparent hover:bg-brand-50 hover:border-brand-100 transition; }
+      .doc-item.active { @apply bg-brand-50 border-brand-200; }
+    }
+    @layer base {
+      .doc-body h1 { @apply text-2xl font-bold mt-6 mb-3 text-slate-900; }
+      .doc-body h2 { @apply text-xl font-bold mt-6 mb-2 text-slate-900; }
+      .doc-body h3 { @apply text-base font-semibold mt-5 mb-2 text-slate-800; }
+      .doc-body h4 { @apply text-sm font-semibold mt-4 mb-1 text-slate-800; }
+      .doc-body p { @apply my-2 leading-7; }
+      .doc-body ul { @apply list-disc pl-5 my-2; }
+      .doc-body ol { @apply list-decimal pl-5 my-2; }
+      .doc-body li { @apply my-1 leading-7; }
+      .doc-body code { @apply bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-[0.85em]; }
+      .doc-body pre { @apply bg-slate-900 text-slate-100 p-4 rounded-xl overflow-x-auto my-3 text-[13px] leading-6; }
+      .doc-body pre code { @apply bg-transparent p-0; color: inherit; font-size: inherit; }
+      .doc-body table { @apply w-full border-collapse my-3 text-sm; }
+      .doc-body th, .doc-body td { @apply border border-slate-200 px-3 py-1.5 text-left align-top; }
+      .doc-body th { @apply bg-slate-50 font-semibold; }
+      .doc-body blockquote { @apply border-l-4 border-slate-300 pl-4 text-slate-600 my-3; }
+      .doc-body hr { @apply my-6 border-slate-200; }
+      .doc-body a { @apply text-brand-600 underline; }
+      .doc-body strong { @apply font-semibold text-slate-900; }
+    }
+  </style>
 </head>
 
-<body class="bg-slate-50 min-h-screen">
-  <main class="max-w-6xl mx-auto p-6 space-y-4">
-    <h1 class="text-2xl font-bold">FastAPI + Docker PostgreSQL + AG Grid</h1>
-
-    <section id="loginView" class="bg-white p-4 rounded-xl shadow-sm border w-full md:w-96 space-y-3">
-      <h2 class="font-semibold">로그인</h2>
-      <input id="username" class="w-full border rounded px-3 py-2" value="admin" placeholder="아이디" />
-      <input id="password" type="password" class="w-full border rounded px-3 py-2" value="admin1234" placeholder="비밀번호" />
-      <button id="btnLogin" class="w-full bg-indigo-600 text-white rounded px-3 py-2">로그인</button>
-      <p id="loginMsg" class="text-sm text-rose-600 min-h-6"></p>
-    </section>
-
-    <section id="appView" class="hidden space-y-3">
-      <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-2 items-center">
-        <span id="me" class="text-sm font-medium"></span>
-        <div class="flex gap-1 ml-auto">
-          <button id="tabPosts" class="px-3 py-2 rounded bg-indigo-600 text-white text-sm">게시글</button>
-          <button id="tabEngine" class="px-3 py-2 rounded bg-slate-200 text-sm">멀티 DB 엔진</button>
+<body class="bg-slate-100 min-h-screen text-slate-800 antialiased">
+  <!-- 로그인 -->
+  <section id="loginView" class="min-h-screen flex items-center justify-center p-6">
+    <div class="card w-full max-w-md p-8 space-y-5">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center text-xl"><i class="fa-solid fa-database"></i></div>
+        <div>
+          <h1 class="text-xl font-bold">Multi-DB Lab</h1>
+          <p class="text-xs text-slate-500">12 개 데이터베이스 · 각 DB 가 어울리는 사용 사례</p>
         </div>
-        <button id="btnLogout" class="px-3 py-2 rounded bg-slate-200 text-sm">로그아웃</button>
       </div>
+      <div class="space-y-3">
+        <label class="block text-xs font-medium text-slate-600">아이디
+          <input id="username" class="field mt-1" value="admin" placeholder="아이디" /></label>
+        <label class="block text-xs font-medium text-slate-600">비밀번호
+          <input id="password" type="password" class="field mt-1" value="admin1234" placeholder="비밀번호" /></label>
+        <button id="btnLogin" class="btn-primary w-full justify-center"><i class="fa-solid fa-right-to-bracket"></i> 로그인</button>
+        <p id="loginMsg" class="text-sm text-rose-600 min-h-6"></p>
+      </div>
+    </div>
+  </section>
 
-      <section id="postsView" class="space-y-3">
-        <div class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-2 items-center">
-          <input id="search" class="border rounded px-3 py-2 text-sm" placeholder="검색어" />
-          <button id="btnSearch" class="px-3 py-2 rounded bg-slate-800 text-white text-sm">검색</button>
-          <button id="btnNew" class="px-3 py-2 rounded bg-emerald-600 text-white text-sm">새 글</button>
+  <!-- 앱 -->
+  <section id="appView" class="hidden">
+    <!-- 상단 바 -->
+    <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30 h-16">
+      <div class="max-w-[1920px] mx-auto h-full px-4 2xl:px-6 flex items-center gap-3">
+        <button id="btnNav" class="btn-icon" title="메뉴 열기/닫기"><i class="fa-solid fa-bars"></i></button>
+        <div class="flex items-center gap-2">
+          <span class="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center"><i class="fa-solid fa-database"></i></span>
+          <div class="leading-tight">
+            <h1 class="text-base font-bold">Multi-DB Lab</h1>
+            <p class="text-[11px] text-slate-500 hidden sm:block">12 개 데이터베이스 · 각 DB 가 어울리는 사용 사례</p>
+          </div>
         </div>
-        <p id="appMsg" class="text-sm text-rose-600 min-h-6"></p>
-        <div id="grid" class="ag-theme-alpine w-full" style="height: 520px;"></div>
-      </section>
-
-      <section id="engineView" class="hidden space-y-3">
-        <div class="bg-white p-4 rounded-xl shadow-sm border space-y-2">
-          <h2 class="font-semibold text-sm">DB 팔레트 — 클릭하면 캔버스에 노드가 추가됩니다</h2>
-          <div id="enginePalette" class="flex flex-wrap gap-2"></div>
-          <p class="text-xs text-slate-500">실선 테두리: Grid 연결 가능(id/title/content/tags 구조) · 점선 테두리: 구조가 달라 연결 불가(Employee/Graph/Vector)</p>
+        <div class="ml-auto flex items-center gap-2">
+          <span id="me" class="text-sm text-slate-600 hidden sm:inline-flex items-center gap-1.5"><i class="fa-regular fa-user"></i><span></span></span>
+          <button id="btnDocs" class="btn-dark"><i class="fa-solid fa-book-open"></i> 기술 문서</button>
+          <button id="btnLogout" class="btn-ghost"><i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">로그아웃</span></button>
         </div>
+      </div>
+    </header>
 
-        <p id="engineMsg" class="text-sm text-rose-600 min-h-6"></p>
+    <!-- 본문: [좌측 offcanvas] [콘텐츠] [우측 docs(도킹 모드)] -->
+    <div id="shell" class="max-w-[1920px] mx-auto flex items-start relative">
+      <!-- 좌측 offcanvas 백드롭 (좁은 화면에서만) -->
+      <div id="navBackdrop" class="hidden fixed inset-0 bg-slate-900/40 z-30 xl:hidden"></div>
 
-        <div class="bg-white p-2 rounded-xl shadow-sm border">
-          <canvas id="engineCanvas" width="1100" height="420" class="w-full" style="touch-action: none;"></canvas>
+      <!-- 좌측 내비게이션 (offcanvas) -->
+      <nav id="useCaseNav"
+        class="bg-white border-r border-slate-200 w-72 shrink-0 overflow-y-auto transition-all duration-200
+               fixed top-16 bottom-0 left-0 z-40 -translate-x-full xl:translate-x-0 xl:sticky xl:top-16 xl:h-[calc(100vh-4rem)] xl:z-0">
+        <div class="px-3 pb-6"><div id="navItems"></div></div>
+      </nav>
+
+      <!-- 콘텐츠 -->
+      <main id="content" class="flex-1 min-w-0 p-4 2xl:p-6 space-y-4">
+        <!-- 사용 사례 헤더 -->
+        <section id="useCaseHeader" class="card p-5 2xl:p-6">
+          <div class="flex items-start gap-4">
+            <div id="ucIcon" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"></div>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 id="ucTitle" class="text-xl 2xl:text-2xl font-bold text-slate-900"></h2>
+                <span id="ucCategory" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600"></span>
+                <code id="ucEndpoint" class="text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded"></code>
+              </div>
+              <p id="ucUseCase" class="text-sm font-medium text-brand-700 mt-1.5"></p>
+              <p id="ucDesc" class="text-sm text-slate-600 mt-1 leading-6"></p>
+              <div class="flex flex-wrap items-center gap-2 pt-3">
+                <span class="text-xs text-slate-500 inline-flex items-center gap-1"><i class="fa-solid fa-book"></i> 관련 기술 문서</span>
+                <div id="ucDocs" class="flex flex-wrap gap-1.5"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <p id="appMsg" class="text-sm text-rose-600 min-h-5 px-1"></p>
+
+        <!-- 1) PostgreSQL 게시판 (ORM) -->
+        <section id="panel-posts" class="panel hidden space-y-4">
+          <div class="card p-4 flex flex-wrap gap-2 items-center">
+            <div class="relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input id="search" class="field !w-64 !pl-8" placeholder="제목 검색" />
+            </div>
+            <button id="btnSearch" class="btn-dark"><i class="fa-solid fa-magnifying-glass"></i> 검색</button>
+            <button id="btnNew" class="btn-success"><i class="fa-solid fa-plus"></i> 새 글</button>
+            <span class="text-xs text-slate-500 ml-auto hidden lg:inline">트랜잭션 · 외래키(owner) · 조회수 · 페이지네이션</span>
+          </div>
+          <div id="grid" class="ag-theme-alpine grid-box h-[calc(100vh-24rem)] min-h-[420px]"></div>
+        </section>
+
+        <!-- 2) Lab 레코드 저장소 (7 개 DB 공통 패널) -->
+        <section id="panel-records" class="panel hidden space-y-4">
+          <div class="card p-4 space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+              <input id="recId" class="field" placeholder="id (비우면 자동 생성)" />
+              <input id="recTitle" class="field" placeholder="title" />
+              <input id="recContent" class="field" placeholder="content" />
+              <input id="recTags" class="field" placeholder="tags (쉼표 구분)" />
+            </div>
+            <div class="flex flex-wrap gap-2 items-center">
+              <button id="btnRecCreate" class="btn-success"><i class="fa-solid fa-plus"></i> 레코드 추가</button>
+              <button id="btnRecReload" class="btn-dark"><i class="fa-solid fa-rotate"></i> 목록 새로고침</button>
+              <button id="btnRecSample" class="btn-primary"><i class="fa-solid fa-wand-magic-sparkles"></i> 샘플 3건 생성</button>
+              <label class="text-xs text-slate-500 ml-auto flex items-center gap-2">limit
+                <input id="recLimit" type="number" min="1" max="200" value="50" class="field !w-20" /></label>
+            </div>
+          </div>
+          <div id="recGrid" class="ag-theme-alpine grid-box h-[calc(100vh-27rem)] min-h-[380px]"></div>
+        </section>
+
+        <!-- 3) DynamoDB 직원 관리 -->
+        <section id="panel-employees" class="panel hidden space-y-4">
+          <div class="card p-4 space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input id="empId" class="field" placeholder="id (파티션 키)" />
+              <input id="empName" class="field" placeholder="name (정렬 키)" />
+              <input id="empPosition" class="field" placeholder="position" />
+            </div>
+            <div class="flex flex-wrap gap-2 items-center">
+              <button id="btnEmpCreate" class="btn-success"><i class="fa-solid fa-user-plus"></i> 직원 추가</button>
+              <button id="btnEmpGet" class="btn-primary"><i class="fa-solid fa-key"></i> id + name 으로 조회</button>
+              <button id="btnEmpReload" class="btn-dark"><i class="fa-solid fa-table-list"></i> 전체 스캔</button>
+            </div>
+            <pre id="empResult" class="console"></pre>
+          </div>
+          <div id="empGrid" class="ag-theme-alpine grid-box h-[calc(100vh-31rem)] min-h-[320px]"></div>
+        </section>
+
+        <!-- 4) 벡터 DB 유사도 검색 -->
+        <section id="panel-vector" class="panel hidden space-y-4">
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div class="card p-4 space-y-2">
+              <h3 class="card-title"><i class="fa-solid fa-upload text-brand-600"></i> ① 벡터 업서트 (임베딩 저장)</h3>
+              <input id="vecId" class="field" placeholder="id (예: doc-1)" />
+              <input id="vecValues" class="field" placeholder="values — 쉼표 구분 실수 (예: 0.1, 0.9, 0.3)" />
+              <input id="vecMeta" class="field" placeholder='metadata JSON (예: {"title":"문서 1"})' />
+              <div class="flex gap-2">
+                <button id="btnVecUpsert" class="btn-success"><i class="fa-solid fa-plus"></i> 업서트</button>
+                <button id="btnVecSample" class="btn-primary"><i class="fa-solid fa-wand-magic-sparkles"></i> 샘플 4건 업서트</button>
+              </div>
+            </div>
+            <div class="card p-4 space-y-2">
+              <h3 class="card-title"><i class="fa-solid fa-magnifying-glass text-brand-600"></i> ② 유사도 검색 (top-k)</h3>
+              <input id="vecQuery" class="field" placeholder="query values — 쉼표 구분 실수" />
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-slate-500">top_k</label>
+                <input id="vecTopK" type="number" min="1" max="20" value="3" class="field !w-20" />
+                <button id="btnVecQuery" class="btn-dark"><i class="fa-solid fa-magnifying-glass"></i> 검색</button>
+                <span id="vecProvider" class="text-xs text-slate-500 ml-auto"></span>
+              </div>
+            </div>
+          </div>
+          <div id="vecGrid" class="ag-theme-alpine grid-box h-[calc(100vh-30rem)] min-h-[300px]"></div>
+        </section>
+
+        <!-- 5) Neo4j 그래프 분석 -->
+        <section id="panel-graph" class="panel hidden space-y-4">
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div class="card p-4 space-y-2">
+              <h3 class="card-title"><i class="fa-solid fa-circle-plus text-brand-600"></i> ① 노드 추가</h3>
+              <input id="gNodeId" class="field" placeholder="id (예: alice)" />
+              <input id="gNodeLabel" class="field" placeholder="label (기본 Entity)" />
+              <button id="btnGNode" class="btn-success"><i class="fa-solid fa-plus"></i> 노드 추가</button>
+            </div>
+            <div class="card p-4 space-y-2">
+              <h3 class="card-title"><i class="fa-solid fa-arrow-right-arrow-left text-brand-600"></i> ② 엣지 추가 (관계)</h3>
+              <input id="gEdgeSrc" class="field" placeholder="source id" />
+              <input id="gEdgeDst" class="field" placeholder="target id" />
+              <input id="gEdgeW" type="number" step="0.1" value="1" class="field" placeholder="weight" />
+              <button id="btnGEdge" class="btn-success"><i class="fa-solid fa-plus"></i> 엣지 추가</button>
+            </div>
+            <div class="card p-4 space-y-2">
+              <h3 class="card-title"><i class="fa-solid fa-chart-simple text-brand-600"></i> ③ 분석</h3>
+              <select id="gAlgo" class="field">
+                <option value="pagerank">pagerank — 영향력 순위</option>
+                <option value="degree">degree — 연결 수</option>
+              </select>
+              <div class="flex gap-2">
+                <button id="btnGAnalyze" class="btn-dark"><i class="fa-solid fa-play"></i> 분석 실행</button>
+                <button id="btnGSample" class="btn-primary"><i class="fa-solid fa-wand-magic-sparkles"></i> 샘플 그래프 생성</button>
+              </div>
+            </div>
+          </div>
+          <pre id="graphLog" class="console"></pre>
+          <div id="graphGrid" class="ag-theme-alpine grid-box h-[calc(100vh-36rem)] min-h-[260px]"></div>
+        </section>
+
+        <!-- 6) 멀티 DB 엔진 (캔버스) -->
+        <section id="panel-engine" class="panel hidden space-y-4">
+          <div class="card p-4 space-y-2">
+            <h3 class="card-title"><i class="fa-solid fa-palette text-brand-600"></i> DB 팔레트 — 클릭하면 캔버스에 노드가 추가됩니다</h3>
+            <div id="enginePalette" class="flex flex-wrap gap-2"></div>
+            <p class="text-xs text-slate-500">실선 테두리: Grid 연결 가능(id/title/content/tags 구조) · 점선 테두리: 구조가 달라 연결 불가(Employee/Graph/Vector)</p>
+          </div>
+          <p id="engineMsg" class="text-sm text-rose-600 min-h-5 px-1"></p>
+          <div class="card p-2">
+            <canvas id="engineCanvas" width="1400" height="440" class="w-full" style="touch-action: none;"></canvas>
+          </div>
+          <div class="card p-4 space-y-2">
+            <h3 class="card-title"><i class="fa-solid fa-table text-brand-600"></i> 통합 Grid — 연결된 DB의 레코드가 합쳐져 표시됩니다</h3>
+            <div id="engineGrid" class="ag-theme-alpine w-full rounded-xl overflow-hidden border border-slate-200" style="height: 360px;"></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- 우측 문서 패널: overlay(기본) · wide(확대) · dock(콘텐츠 영역에 도킹) 모드를 docs.js 가 클래스 토글로 전환 -->
+      <div id="docsBackdrop" class="hidden fixed inset-0 bg-slate-900/40 z-40"></div>
+      <aside id="docsPanel"
+        class="bg-white border-l border-slate-200 flex flex-col transition-[transform,width] duration-200
+               fixed top-0 right-0 h-full z-50 shadow-2xl w-full sm:w-[640px] translate-x-full">
+        <div class="flex items-center gap-1.5 px-4 h-14 border-b border-slate-200 shrink-0">
+          <button id="docsBack" class="btn-icon hidden" title="목록"><i class="fa-solid fa-arrow-left"></i></button>
+          <i class="fa-solid fa-book-open text-brand-600"></i>
+          <h2 id="docsHeading" class="font-bold truncate">기술 문서</h2>
+          <span id="docsCount" class="text-xs text-slate-500 shrink-0"></span>
+          <div class="ml-auto flex items-center gap-0.5">
+            <button id="docsModeSide" class="btn-icon" title="사이드 패널"><i class="fa-solid fa-table-columns"></i></button>
+            <button id="docsModeWide" class="btn-icon" title="확대 (넓게)"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>
+            <button id="docsModeDock" class="btn-icon" title="콘텐츠 영역에 도킹"><i class="fa-solid fa-thumbtack"></i></button>
+            <button id="docsClose" class="btn-icon" title="닫기"><i class="fa-solid fa-xmark"></i></button>
+          </div>
         </div>
+        <div id="docsList" class="flex-1 overflow-y-auto p-3 space-y-1"></div>
+        <article id="docsContent" class="hidden flex-1 overflow-y-auto px-6 2xl:px-8 py-5 doc-body text-[15px]"></article>
+        <p id="docsMsg" class="text-xs text-rose-600 px-4 py-2 border-t border-slate-200 min-h-8 shrink-0"></p>
+      </aside>
+    </div>
+  </section>
 
-        <div class="bg-white p-4 rounded-xl shadow-sm border space-y-2">
-          <h2 class="font-semibold text-sm">통합 Grid — 연결된 DB의 레코드가 합쳐져 표시됩니다</h2>
-          <div id="engineGrid" class="ag-theme-alpine w-full" style="height: 360px;"></div>
-        </div>
-      </section>
-    </section>
-  </main>
-
-  <dialog id="editor" class="rounded-xl p-0 w-full max-w-xl">
-    <form method="dialog" class="p-4 space-y-3">
-      <h3 id="editorTitle" class="font-semibold">게시글</h3>
-      <input id="postTitle" class="w-full border rounded px-3 py-2" placeholder="제목" maxlength="120" />
-      <textarea id="postContent" class="w-full border rounded px-3 py-2" rows="8" placeholder="내용" maxlength="5000"></textarea>
+  <!-- 게시글 편집 다이얼로그 -->
+  <dialog id="editor" class="rounded-2xl p-0 w-full max-w-xl shadow-2xl backdrop:bg-slate-900/40">
+    <form method="dialog" class="p-5 space-y-3">
+      <h3 id="editorTitle" class="font-semibold flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-brand-600"></i> 게시글</h3>
+      <input id="postTitle" class="field" placeholder="제목" maxlength="120" />
+      <textarea id="postContent" class="field" rows="8" placeholder="내용" maxlength="5000"></textarea>
       <div class="flex justify-end gap-2">
-        <button class="px-3 py-2 rounded bg-slate-200">취소</button>
-        <button id="btnSave" value="default" class="px-3 py-2 rounded bg-indigo-600 text-white">저장</button>
+        <button class="btn-ghost">취소</button>
+        <button id="btnSave" value="default" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 레코드 편집 다이얼로그 -->
+  <dialog id="recEditor" class="rounded-2xl p-0 w-full max-w-xl shadow-2xl backdrop:bg-slate-900/40">
+    <form method="dialog" class="p-5 space-y-3">
+      <h3 id="recEditorTitle" class="font-semibold flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-brand-600"></i> 레코드 수정</h3>
+      <input id="recEditTitle" class="field" placeholder="title" />
+      <textarea id="recEditContent" class="field" rows="5" placeholder="content"></textarea>
+      <input id="recEditTags" class="field" placeholder="tags (쉼표 구분)" />
+      <div class="flex justify-end gap-2">
+        <button class="btn-ghost">취소</button>
+        <button id="btnRecSave" value="default" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
       </div>
     </form>
   </dialog>
 
   <script src="./assets/app.js" defer></script>
+  <script src="./assets/usecases.js" defer></script>
   <script src="./assets/engine.js" defer></script>
+  <script src="./assets/docs.js" defer></script>
 </body>
 
 </html>
