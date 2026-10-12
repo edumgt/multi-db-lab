@@ -9,7 +9,8 @@ FastAPI 백엔드에 **PostgreSQL · MongoDB · DynamoDB · Supabase · Pinecone
 
 1. [기술 스택](#기술-스택)
 2. [백엔드 아키텍처](#백엔드-아키텍처)
-3. [의존성 상세](#의존성-상세)
+3. [Python 중급 · Clean Architecture 적용 내역](#python-중급--clean-architecture-적용-내역)
+4. [의존성 상세](#의존성-상세)
    - [PostgreSQL · SQLAlchemy · psycopg](#1-postgresql--sqlalchemy--psycopg)
    - [JWT 인증 · passlib · python-jose](#2-jwt-인증--passlib--python-jose)
    - [DynamoDB · boto3](#3-dynamodb--boto3)
@@ -23,11 +24,11 @@ FastAPI 백엔드에 **PostgreSQL · MongoDB · DynamoDB · Supabase · Pinecone
    - [ClickHouse (OLAP)](#11-clickhouse-olap)
    - [Cassandra (Wide-column)](#12-cassandra-wide-column)
    - [Qdrant (Vector DB)](#13-qdrant-vector-db)
-4. [환경변수](#환경변수)
-5. [프로젝트 구조](#프로젝트-구조)
-6. [실행 방법](#실행-방법)
-7. [API 요약](#api-요약)
-8. [멀티 DB 엔진 (Canvas)](#멀티-db-엔진-canvas)
+5. [환경변수](#환경변수)
+6. [프로젝트 구조](#프로젝트-구조)
+7. [실행 방법](#실행-방법)
+8. [API 요약](#api-요약)
+9. [멀티 DB 엔진 (Canvas)](#멀티-db-엔진-canvas)
 
 ---
 
@@ -83,37 +84,311 @@ FastAPI 백엔드에 **PostgreSQL · MongoDB · DynamoDB · Supabase · Pinecone
 
 ## 백엔드 아키텍처
 
-`backend/` 패키지는 **계층형(Layered) 아키텍처**로 구성됩니다.
+`backend/` 패키지는 **Clean Architecture** 의 4 개 원(Entities · Use Cases · Interface Adapters · Frameworks & Drivers)을 그대로 디렉터리로 옮긴 구조입니다.
 
 ```
 backend/
-├── main.py                     # FastAPI 앱 조립 (라우터 등록, CORS, startup)
-├── config/
-│   ├── settings.py             # pydantic-settings — 전체 환경변수 단일 진실 소스
-│   └── database.py             # SQLAlchemy engine/session + DynamoDbClientFactory
-├── models/
-│   ├── user.py                 # SQLAlchemy ORM — User 테이블
-│   ├── post.py                 # SQLAlchemy ORM — Post 테이블
-│   ├── employee.py             # Pydantic — DynamoDB Employee 스키마
-│   ├── lab.py                  # Pydantic — Lab/Vector/Graph 요청·응답 스키마
-│   └── schemas.py              # Pydantic — 인증·게시글 요청·응답 스키마
-├── repositories/               # 데이터 접근 레이어 (DB 직접 호출)
-│   ├── user_repository.py
-│   ├── post_repository.py
-│   └── employee_repository.py
-├── services/                   # 비즈니스 로직 레이어
-│   ├── auth_service.py         # 비밀번호 해싱, JWT 발급·검증
-│   ├── post_service.py
-│   └── employee_service.py
-└── api/                        # FastAPI 라우터 레이어
-    ├── auth_router.py          # /api/auth/*
-    ├── post_router.py          # /api/posts/*
-    ├── employee_router.py      # /employees/* (DynamoDB)
-    └── lab_router.py           # /lab/* (MongoDB·PostgreSQL·Supabase·Vector·Graph)
+├── domain/                     # ① Entities — 아무것도 import 하지 않는 가장 안쪽 원
+│   ├── entities.py             #    불변 dataclass: LabRecord · LabRecordPatch · Employee · User · Post · VectorMatch …
+│   ├── exceptions.py           #    DomainError 계층 (NotFoundError · ValidationError · ExternalServiceError …)
+│   └── ports.py                #    ABC 추상 인터페이스: LabRecordRepository · VectorStore · GraphStore · PasswordHasher · TokenProvider …
+├── usecases/                   # ② Use Cases — 애플리케이션 규칙. domain 만 import
+│   ├── lab_record_usecase.py   #    7 개 DB 라우터가 공유하는 단일 CRUD 규칙 (빈 PATCH 거절, 404 판단)
+│   ├── vector_usecase.py       #    provider 를 모르는 벡터 upsert/query
+│   ├── graph_usecase.py        #    self-loop 금지 등 그래프 규칙
+│   ├── employee_usecase.py
+│   ├── post_usecase.py         #    "본인 글만 수정/삭제" 규칙 (HTTPException 없음)
+│   └── auth_usecase.py         #    login / authenticate / ensure_user
+├── adapters/                   # ③ Interface Adapters — 바깥 모양 ↔ 안쪽 모양 변환
+│   ├── gateways/               #    포트 구현체 (DB 드라이버 → 엔티티)
+│   │   ├── lab_mongo.py  lab_postgres.py  lab_supabase.py  lab_redis.py
+│   │   ├── lab_opensearch.py  lab_clickhouse.py  lab_cassandra.py
+│   │   ├── vector_stores.py    #    Pinecone · Weaviate · Qdrant → VectorStore
+│   │   ├── graph_neo4j.py      #    Neo4j → GraphStore
+│   │   ├── employee_dynamodb.py
+│   │   └── sql_repositories.py #    SQLAlchemy ORM 행 → User / Post 엔티티
+│   ├── security/               #    bcrypt_hasher.py · jwt_token_provider.py (PasswordHasher / TokenProvider 구현)
+│   └── api/                    #    HTTP 컨트롤러 + 프리젠터
+│       ├── schemas/            #    pydantic 요청·응답 (HTTP 경계 전용)
+│       ├── presenters.py       #    엔티티 → 응답 스키마
+│       ├── error_handlers.py   #    DomainError → HTTP 상태코드
+│       ├── deps.py             #    조립(Composition Root): 클라이언트 → 게이트웨이 → 유스케이스
+│       └── *_router.py         #    auth · post · employee · lab
+├── infrastructure/             # ④ Frameworks & Drivers
+│   ├── settings.py             #    pydantic-settings (APP_ 접두사)
+│   ├── orm.py                  #    SQLAlchemy engine / Session / UserRow / PostRow
+│   └── clients.py              #    13 개 드라이버 클라이언트 lru_cache 싱글턴 + ResourceRegistry
+└── main.py                     # 조립 지점: lifespan · CORS · 라우터 · 에러 핸들러 · 시드
+tests/                          # DB 없이 돌아가는 단위 테스트 + 의존성 방향 검사
 ```
 
-**계층 간 의존 방향:** `api → services → repositories → models ← config`  
-각 계층은 자신의 아래 계층만 호출하고, 위 계층을 역참조하지 않습니다.
+**의존성 방향 (바깥 → 안쪽만 허용):**
+
+```
+main.py ──▶ adapters ──▶ usecases ──▶ domain
+   │            │
+   └──▶ infrastructure ◀┘ (게이트웨이는 드라이버 '타입' 만 참조, 생성은 deps.py 가 담당)
+```
+
+이 규칙은 문서가 아니라 **테스트**(`tests/test_architecture.py`)가 import 문을 AST 로 스캔해 강제합니다. 자세한 적용 내역은 [Python 중급 · Clean Architecture 적용 내역](#python-중급--clean-architecture-적용-내역) 을 보세요.
+
+---
+
+## Python 중급 · Clean Architecture 적용 내역
+
+이 절은 다음 8 개 학습 항목이 **어느 파일의 어느 코드**로 구현되었고, **무엇으로 검증**했는지를 기록합니다.
+각 소스 파일의 모듈 docstring 에도 `[Python 중급 적용 사례 — …]` / `[Clean Architecture 적용 사례 — …]` 머리말로 같은 내용이 주석되어 있습니다.
+
+### 검증 결과 요약
+
+| 검증 수단 | 명령 | 결과 |
+|---|---|---|
+| 단위·아키텍처 테스트 | `pytest tests` | 17 passed |
+| 정적 타입 검사 | `mypy backend` | Success: no issues found in 46 source files |
+| 실제 저장소 왕복 (Redis · MongoDB) | TestClient 로 POST/GET/PATCH/DELETE | 201 / 200 / 200 / 204, 빈 PATCH → 400, 없는 id → 404 |
+| 장애·설정 오류 매핑 | OpenSearch 미기동 · Supabase 미설정 · 잘못된 JWT | 502 `ExternalServiceError` · 400 `ConfigurationError` · 401 + `WWW-Authenticate: Bearer` |
+
+---
+
+### 1. 파이썬 중급 핵심
+
+#### 1-1. 추상 클래스와 인터페이스 — `abc.ABC` + `@abstractmethod`
+
+**어디에:** `backend/domain/ports.py` (정의) → `backend/adapters/gateways/*.py`, `backend/adapters/security/*.py`, `tests/fakes.py` (구현)
+
+```python
+# backend/domain/ports.py
+class LabRecordRepository(ABC):
+    source: ClassVar[str] = "unknown"          # 구현체가 반드시 덮어쓰는 클래스 속성
+
+    @abstractmethod
+    def add(self, record: LabRecord) -> LabRecord: ...
+    @abstractmethod
+    def list(self, limit: int) -> list[LabRecord]: ...
+    @abstractmethod
+    def update(self, record_id: str, patch: LabRecordPatch) -> LabRecord | None: ...
+    @abstractmethod
+    def delete(self, record_id: str) -> bool: ...
+```
+
+| 포트(ABC) | 구현체 |
+|---|---|
+| `LabRecordRepository` | `MongoLabRecordRepository` · `PostgresLabRecordRepository` · `SupabaseLabRecordRepository` · `RedisLabRecordRepository` · `OpenSearchLabRecordRepository` · `ClickHouseLabRecordRepository` · `CassandraLabRecordRepository` · (테스트) `InMemoryLabRecordRepository` |
+| `VectorStore` | `PineconeVectorStore` · `WeaviateVectorStore` · `QdrantVectorStore` |
+| `GraphStore` | `Neo4jGraphStore` |
+| `EmployeeRepository` | `DynamoDbEmployeeRepository` |
+| `UserRepository` / `PostRepository` | `SqlUserRepository` / `SqlPostRepository` · (테스트) `InMemory*Repository` |
+| `PasswordHasher` / `TokenProvider` | `BcryptPasswordHasher` / `JwtTokenProvider` · (테스트) `PlainTextHasher` / `StaticTokenProvider` |
+
+**강제성 검증:** `tests/test_domain.py::test_abc_forces_full_implementation` — `add` 만 구현한 서브클래스를 인스턴스화하면 `TypeError` 가 나는 것을 확인합니다.
+`typing.Protocol` 예시도 하나 두었습니다 (`Closeable`, 구조적 서브타이핑 — 상속 없이 `close()` 만 있으면 통과).
+
+#### 1-2. 타입 힌트 — 선언과 MyPy 정적 검사
+
+**어디에:** 모든 모듈. 설정은 `mypy.ini` (domain · usecases 는 `disallow_untyped_defs = True` 로 가장 엄격).
+
+사용한 타입 힌트 기능과 위치:
+
+| 기능 | 예 | 파일 |
+|---|---|---|
+| `from __future__ import annotations` | 전방 참조 · 순환 참조 해결 | 전 모듈 |
+| PEP 695 `type` 별칭 | `type PostSortKey = Literal["created_at:desc", …]` | `domain/entities.py` |
+| `Literal` | `GraphAlgorithm`, `VectorProviderName` | `domain/entities.py`, `infrastructure/settings.py` |
+| `ClassVar` | `source: ClassVar[str]` | `domain/ports.py`, 게이트웨이 전부 |
+| `Final` | `COLUMNS: Final[tuple[str, ...]]`, `_STATUS_BY_EXCEPTION: Final[dict[…]]` | `gateways/lab_clickhouse.py`, `api/error_handlers.py` |
+| `Mapping` / `Sequence` / `Iterable` | 읽기 전용·공변 입력 타입 | `domain/entities.py`, `domain/ports.py`, `api/presenters.py` |
+| `Callable[[], T]` | 전략 테이블 `dict[str, Callable[[], LabRecordRepository]]` | `api/deps.py` |
+| `Annotated[T, Depends(…)]` | `CurrentUser = Annotated[User, Depends(get_current_user)]` | `api/deps.py`, 라우터 |
+| `Protocol` + `@runtime_checkable` | `Closeable` | `domain/ports.py` |
+| `typing.cast` | 드라이버 스텁이 부정확한 곳(`RowMapping`, redis `Awaitable | Any`)에 검사기 힌트 | `gateways/lab_postgres.py`, `gateways/lab_redis.py` |
+| `Mapped[...]` (SQLAlchemy 2.0) | 타입 힌트 기반 컬럼 선언 | `infrastructure/orm.py` |
+| 키워드 전용 인자 `*,` | `update(post_id, *, title, content)` | `domain/ports.py`, `usecases/post_usecase.py` |
+
+**검증:** `mypy backend` → `Success: no issues found in 46 source files`.
+개발 중 mypy 가 실제로 잡아낸 오류 2 종(SQLAlchemy `RowMapping` 키 타입, redis-py 동기/비동기 공용 스텁)은 `cast` 로 해결하고 그 이유를 해당 줄 주석에 남겼습니다.
+
+#### 1-3. 예외 처리 — `try/except/else/finally` 와 커스텀 예외
+
+**커스텀 예외 계층:** `backend/domain/exceptions.py`
+
+```
+DomainError (default_detail 클래스 속성으로 메시지 상속)
+├── NotFoundError · ValidationError · PermissionDeniedError · AuthenticationError
+├── ConfigurationError · UnsupportedProviderError
+└── ExternalServiceError(service=…)   ← 드라이버 예외를 감싸는 래퍼
+```
+
+**네 절을 모두 사용한 예:** `backend/adapters/gateways/lab_redis.py` 의 `_load()`
+
+```python
+def _load(self, raw: str, *, key: str) -> LabRecord:
+    try:
+        data: dict[str, Any] = json.loads(raw)          # 실패 가능 지점
+    except json.JSONDecodeError as exc:                 # 손상된 값 → 도메인 예외로 변환
+        raise ExternalServiceError(f"Redis 값이 올바른 JSON 이 아닙니다: {key}", service=self.source) from exc
+    else:                                               # 성공했을 때만
+        return LabRecord.from_dict(data)
+    finally:                                            # 항상
+        logger.debug("redis load key=%s bytes=%d", key, len(raw))
+```
+
+**적용 패턴과 위치:**
+
+| 패턴 | 위치 |
+|---|---|
+| 드라이버 예외 → 도메인 예외 변환 + `raise … from exc` 체이닝 | 모든 게이트웨이 (`PyMongoError`, `SQLAlchemyError`, `RedisError`, `OpenSearchException`, `ClickHouseError`, `DriverException`, `Neo4jError`, `ClientError/BotoCoreError`, `APIError`, `WeaviateBaseError`, `UnexpectedResponse`) |
+| 구체 예외 먼저, 일반 예외 나중 (`except NotFound` → `except OpenSearchException`) | `gateways/lab_opensearch.py` |
+| "알고 있는 경우만 무시, 나머지는 재발생" (`if "does not exist" not in str(exc): raise`) | `gateways/graph_neo4j.py` |
+| 정리 단계 예외 격리 (`try/except Exception` + `logger.exception`) | `infrastructure/clients.py::ResourceRegistry.close_all` |
+| `try/finally` 로 자원 보장 | `infrastructure/orm.py::get_db`, `main.py::lifespan` |
+| 컨텍스트 매니저로 commit/rollback 자동화 | `gateways/lab_postgres.py` (`with engine.begin()`) |
+| 롤백 후 재발생 | `gateways/sql_repositories.py` |
+| 예외 → HTTP 상태코드 매핑 (MRO 순회) | `api/error_handlers.py::status_code_for` |
+
+**검증:** `tests/test_domain.py::test_exception_hierarchy_and_chaining` (계층 · `__cause__` 체이닝), TestClient 로 400/401/404/502 응답 확인.
+
+#### 1-4. JSON 처리 — `json.dumps()` / `json.loads()`
+
+| 위치 | 내용 |
+|---|---|
+| `gateways/lab_redis.py` | 저장: `json.dumps(record.to_dict(), ensure_ascii=False)` (한글 원문 저장) / 조회: `json.loads(raw)` + `JSONDecodeError` 처리 |
+| `domain/entities.py` | `to_dict()` / `from_dict()` — 엔티티 ↔ JSON 호환 dict 변환. `from_dict` 는 `Mapping` 을 받아 pymongo 문서 · SQLAlchemy RowMapping · OpenSearch `_source` 등 어떤 매핑도 수용 |
+| `api/error_handlers.py` | `JSONResponse(status_code=…, content={"detail", "error", "service"})` 로 오류 본문 직접 직렬화 |
+| `security/jwt_token_provider.py` | JWT payload(JSON) 디코드 후 `isinstance(subject, str)` 방어적 검사 |
+| pydantic 스키마 (`api/schemas/`) | HTTP 경계의 JSON 검증·직렬화. `.to_entity()` / `.to_patch()` 로 도메인 객체 변환 |
+
+**검증:** `tests/test_domain.py::test_entity_is_immutable_and_json_roundtrips` — `dumps → loads → from_dict` 왕복이 원본 엔티티와 동일한지, `ensure_ascii=False` 로 한글이 이스케이프되지 않는지 확인.
+
+---
+
+### 2. 클린 아키텍처 기본 원칙
+
+#### 2-1. 계층 분리
+
+| 원 | 디렉터리 | 들어 있는 것 | 들어 있지 **않은** 것 |
+|---|---|---|---|
+| Entities | `domain/` | dataclass 엔티티 · 예외 · 포트(ABC) | FastAPI · SQLAlchemy · pydantic · 드라이버 |
+| Use Cases | `usecases/` | 6 개 유스케이스 클래스 | HTTP 상태코드 · DB 쿼리 · 직렬화 |
+| Interface Adapters | `adapters/` | 게이트웨이 13 개 · 보안 2 개 · 컨트롤러 4 개 · 프리젠터 · 스키마 | 비즈니스 판단 |
+| Frameworks & Drivers | `infrastructure/`, `main.py` | 설정 · ORM 테이블 · 클라이언트 팩토리 · 앱 조립 | 도메인 규칙 |
+
+**리팩터링 전과 후:**
+
+| 전 (`v2.1`) | 후 (`v3.0`) |
+|---|---|
+| `backend/models/` 에 ORM 모델과 pydantic 스키마 혼재 | ORM → `infrastructure/orm.py`, pydantic → `adapters/api/schemas/`, 엔티티 → `domain/entities.py` |
+| `services/post_service.py` 가 `fastapi.HTTPException` 을 던짐 | `usecases/post_usecase.py` 는 `PermissionDeniedError` 만 던지고 `error_handlers.py` 가 403 으로 번역 |
+| `api/lab_router.py` 약 500 줄, 7 DB × 4 엔드포인트 = 28 함수에 같은 검사 복붙 | `LabRecordUseCase` 1 개 + 게이트웨이 7 개 + `_build_record_router()` 1 개. URL·응답 동일 |
+| 라우터가 `_mongo_collection()` 등 드라이버 팩토리를 직접 호출 | 라우터는 `Depends(get_lab_usecase("mongo"))` 로 유스케이스만 받음 |
+| `@app.on_event("startup")` + 모듈 수준 `atexit` | `lifespan` + `ResourceRegistry.close_all()` |
+
+#### 2-2. 의존성 방향 (바깥 → 안쪽)
+
+**규칙:**
+
+| 계층 | import 허용 대상 |
+|---|---|
+| `domain` | 표준 라이브러리만 |
+| `usecases` | `domain` |
+| `adapters` | `domain`, `usecases`, `infrastructure`(드라이버 타입), `adapters` |
+| `infrastructure` | `domain.exceptions`(ConfigurationError 변환용), `infrastructure` |
+| `main.py`, `adapters/api/deps.py` | 전부 (조립 지점은 모든 것을 알아도 되는 유일한 장소) |
+
+**자동 검증:** `tests/test_architecture.py`
+
+- `test_layer_imports_point_inward` — 계층별 모든 `.py` 의 `import` / `from … import` 를 `ast` 로 파싱해 위 표를 위반하면 실패.
+- `test_domain_has_no_framework_imports` — `domain/` 에 fastapi · sqlalchemy · pydantic · pymongo · redis · boto3 · neo4j 가 없음을 확인.
+- `test_usecases_do_not_know_http` — `usecases/` 에 `fastapi` import 와 `HTTPException` 이름 사용이 없음을 AST 로 확인(주석은 제외).
+
+**의존성 역전의 실제 예:** 포트는 사용하는 쪽(`domain/ports.py`)이 소유하고 구현은 바깥(`adapters/gateways/`)에 있습니다. 유스케이스 → 게이트웨이 방향 import 는 한 줄도 없습니다. 게이트웨이는 드라이버 클라이언트를 **생성자 인자**로 받고, 생성(`clients.mongo_collection()` 등)은 `deps.py` 에서만 일어납니다.
+
+#### 2-3. Use Case
+
+**어디에:** `backend/usecases/*.py`. 입력은 원시 타입 또는 도메인 값 객체, 출력은 도메인 엔티티, 협력자는 포트(ABC)만.
+
+```python
+# backend/usecases/lab_record_usecase.py — 7 개 DB 가 공유하는 단일 규칙
+class LabRecordUseCase:
+    def __init__(self, repo: LabRecordRepository) -> None:   # 추상 타입으로 주입
+        self._repo = repo
+
+    def update(self, record_id: str, patch: LabRecordPatch) -> LabRecord:
+        if patch.is_empty():
+            raise ValidationError("수정할 필드가 없습니다.")
+        updated = self._repo.update(record_id, patch)
+        if updated is None:
+            raise NotFoundError(f"{self.source} 레코드를 찾을 수 없습니다: {record_id}")
+        return updated
+```
+
+| 유스케이스 | 담고 있는 규칙 |
+|---|---|
+| `LabRecordUseCase` | limit 범위, 빈 PATCH 거절, 없는 id → NotFound |
+| `VectorUseCase` | 빈 벡터 · top_k 범위 검증. provider 는 모름 |
+| `GraphUseCase` | self-loop 엣지 금지 |
+| `EmployeeUseCase` | 없는 직원 → NotFound |
+| `PostUseCase` | 본인 글만 수정·삭제, 조회수 증가 |
+| `AuthUseCase` | 로그인(계정 열거 방지 메시지), 토큰 → 사용자, 멱등 시드 |
+
+**외부 인터페이스 독립성 검증:** `tests/test_usecases.py` 는 FastAPI · DB · 네트워크 없이 `tests/fakes.py` 의 인메모리 구현만으로 위 규칙을 모두 테스트합니다(약 2 초).
+
+#### 2-4. Interface Adapter
+
+| 종류 | 파일 | 변환 방향 |
+|---|---|---|
+| Gateway | `adapters/gateways/lab_*.py` | pymongo 문서 / RowMapping / Redis JSON 문자열 / OpenSearch `_source` / ClickHouse 행 / Cassandra Row → `LabRecord` |
+| Gateway | `adapters/gateways/vector_stores.py` | Pinecone `matches[].score` · Weaviate `metadata.distance` · Qdrant `point.score` → 공통 `VectorMatch` |
+| Gateway | `adapters/gateways/sql_repositories.py` | `UserRow` / `PostRow` (ORM) → `User` / `Post` 엔티티 |
+| Gateway | `adapters/security/*.py` | passlib · python-jose → `PasswordHasher` / `TokenProvider` |
+| Controller | `adapters/api/*_router.py` | HTTP 요청 → `schema.to_entity()` / `to_patch()` → 유스케이스 호출 |
+| Presenter | `adapters/api/presenters.py` | 엔티티 → `LabRecordRead` / `PostOut` / `VectorQueryResponse` … |
+| Error translator | `adapters/api/error_handlers.py` | `DomainError` 서브클래스 → 400 / 401 / 403 / 404 / 502 |
+| Composition root | `adapters/api/deps.py` | 전략 테이블 `LAB_REPOSITORY_FACTORIES` · `VECTOR_STORE_FACTORIES` 로 구현체 선택 |
+
+컨트롤러 함수 본문은 2~3 줄로 제한했습니다. 예:
+
+```python
+@sub.patch("/{record_id}", response_model=LabRecordRead)
+def update_record(record_id: str, payload: LabRecordUpdate, uc: LabRecordUseCase = Depends(provider)):
+    return presenters.lab_record(uc.update(record_id, payload.to_patch()), source=uc.source)
+```
+
+**새 DB 추가 절차 (OCP 확인):** ① `gateways/lab_xxx.py` 에 `LabRecordRepository` 구현 ② `infrastructure/clients.py` 에 클라이언트 팩토리 ③ `deps.py` 전략 테이블에 한 줄. 유스케이스 · 라우터 · 스키마는 수정하지 않습니다.
+
+---
+
+### 테스트 · 정적 검사 실행
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests          # 유스케이스 · 도메인 · 아키텍처(의존성 방향) 테스트 — DB 불필요
+mypy backend          # 정적 타입 검사
+```
+
+### 기술 노트 (`techNNN.md`)
+
+프로젝트 코드에 쓰인 파이썬 기술을 주제별로 정리한 학습 노트입니다. 각 노트는 실제 적용 파일을 인용합니다.
+
+| 파일 | 주제 |
+|---|---|
+| [tech001.md](tech001.md) | `__init__.py` 와 패키지 |
+| [tech002.md](tech002.md) | `from __future__ import annotations` 와 전방 참조 |
+| [tech003.md](tech003.md) | dataclass — `frozen` · `slots` · `field` · `replace` |
+| [tech004.md](tech004.md) | ABC 와 Protocol — 추상 인터페이스 |
+| [tech005.md](tech005.md) | 타입 힌트 심화 — `Literal` · `Final` · `ClassVar` · `Annotated` · `cast` · mypy |
+| [tech006.md](tech006.md) | 예외 처리 — `try/except/else/finally` · 커스텀 예외 계층 · 체이닝 |
+| [tech007.md](tech007.md) | `json` 모듈 — `dumps` / `loads` · `ensure_ascii` · `JSONDecodeError` |
+| [tech008.md](tech008.md) | `functools` — `lru_cache` 싱글턴 · `cached_property` |
+| [tech009.md](tech009.md) | 컨텍스트 매니저 — `with` · `contextmanager` · lifespan |
+| [tech010.md](tech010.md) | 클로저 · 고차 함수 · 전략 테이블 |
+| [tech011.md](tech011.md) | 제너레이터와 이터레이터 — `yield` · `scan_iter` · `itertools` |
+| [tech012.md](tech012.md) | `@classmethod` · `@staticmethod` · `@property` · 이름 규칙 |
+| [tech013.md](tech013.md) | 인자 전달 — 키워드 전용 `*` · 언패킹 `*` / `**` · `zip` |
+| [tech014.md](tech014.md) | `logging` — 모듈 로거 · 레벨 · `logger.exception` |
+| [tech015.md](tech015.md) | `ast` 모듈 — 아키텍처 테스트로 import 방향 검사 |
+| [tech016.md](tech016.md) | pydantic · pydantic-settings — 경계 검증과 설정 |
+| [tech017.md](tech017.md) | pytest — `raises` · `parametrize` · 픽스처 · 테스트 더블 |
+| [tech018.md](tech018.md) | 문자열 포매팅 — f-string 이스케이프 · 파라미터 바인딩 · 인코딩 |
 
 ---
 
@@ -126,7 +401,7 @@ backend/
 #### SQLAlchemy 2.0 — ORM vs Core 이중 사용
 
 ```python
-# ORM 방식 (users / posts 테이블) — backend/config/database.py
+# ORM 방식 (users / posts 테이블) — backend/infrastructure/orm.py
 engine = create_engine(settings.database_url, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
@@ -134,15 +409,16 @@ class Base(DeclarativeBase): pass
 ```
 
 ```python
-# Core 방식 (lab_records 테이블) — backend/api/lab_router.py
-postgres_table = Table(
-    settings.postgresql_table_name, postgres_metadata,
+# Core 방식 (lab_records 테이블) — 테이블 정의: backend/infrastructure/clients.py
+lab_records_table = Table(
+    settings.postgresql_table_name, lab_metadata,
     Column("id", String, primary_key=True),
     Column("tags", JSON, nullable=False),
     ...
 )
-with engine.begin() as conn:
-    conn.execute(insert(postgres_table).values(**data))
+# 사용: backend/adapters/gateways/lab_postgres.py (PostgresLabRecordRepository)
+with self._engine.begin() as conn:                      # 정상 종료 → commit, 예외 → rollback
+    conn.execute(insert(self._table).values(**record.to_dict()))
 ```
 
 ORM은 관계가 있는 복잡한 도메인 모델(User ↔ Post)에, Core는 스키마가 단순하고 동적인 lab 테이블에 사용합니다.
@@ -159,7 +435,7 @@ SQLAlchemy DSN 접두사: `postgresql+psycopg://`
 #### Dependency Injection으로 세션 관리
 
 ```python
-# backend/config/database.py
+# backend/infrastructure/orm.py
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
@@ -167,10 +443,16 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
-# 라우터에서 사용
-@router.get("/api/posts")
-def list_posts(db: Session = Depends(get_db)):
-    ...
+# backend/adapters/api/deps.py — 세션을 게이트웨이 → 유스케이스로 감싸서 라우터에 주입
+def get_post_usecase(db: Annotated[Session, Depends(get_db)]) -> PostUseCase:
+    return PostUseCase(SqlPostRepository(db))
+
+PostUC = Annotated[PostUseCase, Depends(get_post_usecase)]
+
+# backend/adapters/api/post_router.py — 라우터는 Session 을 직접 보지 않음
+@router.get("", response_model=PostListResponse)
+def list_posts(_: CurrentUser, posts: PostUC, ...) -> PostListResponse:
+    return presenters.post_page(posts.list_posts(q, page, size, sort))
 ```
 
 요청당 세션을 열고, 응답 후 반드시 닫아 커넥션 누수를 방지합니다.
@@ -184,16 +466,19 @@ def list_posts(db: Session = Depends(get_db)):
 #### 비밀번호 해싱 — passlib + bcrypt
 
 ```python
-# backend/services/auth_service.py
+# backend/adapters/security/bcrypt_hasher.py — PasswordHasher 포트(ABC) 구현
 from passlib.context import CryptContext
+from backend.domain.ports import PasswordHasher
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+class BcryptPasswordHasher(PasswordHasher):
+    def __init__(self) -> None:
+        self._ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)        # 솔트 자동 생성·포함
+    def hash(self, raw_password: str) -> str:
+        return self._ctx.hash(raw_password)                  # 솔트 자동 생성·포함
 
-def verify_password(raw: str, hashed: str) -> bool:
-    return _pwd_context.verify(raw, hashed)   # 타이밍 어택 안전한 비교
+    def verify(self, raw_password: str, password_hash: str) -> bool:
+        return self._ctx.verify(raw_password, password_hash) # 타이밍 어택 안전한 비교
 ```
 
 bcrypt는 비용 파라미터(work factor)로 연산 속도를 조절할 수 있어 brute-force에 강합니다.
@@ -201,21 +486,23 @@ bcrypt는 비용 파라미터(work factor)로 연산 속도를 조절할 수 있
 #### JWT 발급·검증 — python-jose
 
 ```python
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
-    to_encode["exp"] = expire
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)  # HS256
+# backend/adapters/security/jwt_token_provider.py — TokenProvider 포트(ABC) 구현
+class JwtTokenProvider(TokenProvider):
+    def issue(self, subject: str) -> str:
+        claims = {"sub": subject, "exp": datetime.now(timezone.utc) + self._expire}
+        return jwt.encode(claims, self._secret, algorithm=self._algorithm)        # HS256
 
-def decode_token(token: str) -> str | None:
-    try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        return payload.get("sub")   # username
-    except JWTError:
-        return None
+    def subject_of(self, token: str) -> str | None:
+        try:
+            payload = jwt.decode(token, self._secret, algorithms=[self._algorithm])
+        except JWTError as exc:            # 만료·서명 불일치·형식 오류 모두 포함
+            logger.debug("jwt decode failed: %s", exc)
+            return None
+        subject = payload.get("sub")
+        return subject if isinstance(subject, str) else None
 ```
 
-`OAuth2PasswordBearer`로 `Authorization: Bearer <token>` 헤더를 자동 추출하고, `get_current_user` 의존성이 토큰을 검증해 User 객체를 주입합니다.
+`OAuth2PasswordBearer`가 `Authorization: Bearer <token>` 헤더를 추출하고, `deps.get_current_user` 가 `AuthUseCase.authenticate(token)` 을 호출해 도메인 `User` 를 주입합니다. 토큰이 무효하면 유스케이스가 `AuthenticationError` 를 던지고 `error_handlers.py` 가 401 + `WWW-Authenticate: Bearer` 로 번역합니다.
 
 ---
 
@@ -226,17 +513,16 @@ def decode_token(token: str) -> str | None:
 #### 연결 방식
 
 ```python
-# backend/config/database.py
+# backend/infrastructure/clients.py
 import boto3
 
-class DynamoDbClientFactory:
-    @staticmethod
-    def resource():
-        return boto3.resource("dynamodb", region_name=settings.aws_region)
+@lru_cache
+def dynamodb_table():
+    return boto3.resource("dynamodb", region_name=settings.aws_region).Table(settings.dynamodb_table_name)
 
-    @staticmethod
-    def table():
-        return DynamoDbClientFactory.resource().Table(settings.dynamodb_table_name)
+# backend/adapters/api/deps.py — 테이블 객체를 게이트웨이에 주입
+def get_employee_usecase() -> EmployeeUseCase:
+    return EmployeeUseCase(DynamoDbEmployeeRepository(clients.dynamodb_table()))
 ```
 
 boto3는 AWS SDK로 환경변수 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` 또는 IAM Role을 자동으로 읽어 인증합니다.  
@@ -252,13 +538,17 @@ boto3는 AWS SDK로 환경변수 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` �
 | 트랜잭션 | 미사용 (단순 put/delete) |
 
 ```python
-# backend/repositories/employee_repository.py
-def find_by_id_and_name(self, employee_id: str, name: str):
-    response = self.table.get_item(Key={"id": employee_id, "name": name})
-    return response.get("Item")
+# backend/adapters/gateways/employee_dynamodb.py — EmployeeRepository 포트 구현
+def find(self, employee_id: str, name: str) -> Employee | None:
+    try:
+        item = self._table.get_item(Key={"id": employee_id, "name": name}).get("Item")
+    except (ClientError, BotoCoreError) as exc:
+        raise ExternalServiceError("DynamoDB 조회 실패", service="dynamodb") from exc
+    return Employee.from_dict(item) if item else None          # dict → 도메인 엔티티
 
-def find_all(self) -> list[dict]:
-    return self.table.scan().get("Items", [])  # 전체 스캔 — 대용량 시 pagination 필요
+def list_all(self) -> list[Employee]:
+    items = self._table.scan().get("Items", [])  # 전체 스캔 — 대용량 시 pagination 필요
+    return [Employee.from_dict(item) for item in items]
 ```
 
 > **주의:** `scan()`은 테이블 전체를 읽으므로 프로덕션에서는 `query()` + GSI 사용을 권장합니다.
@@ -282,25 +572,27 @@ AWS_SECRET_ACCESS_KEY=...
 #### 연결 및 싱글턴 관리
 
 ```python
-# backend/api/lab_router.py
+# backend/infrastructure/clients.py
 from functools import lru_cache
 from pymongo import MongoClient
 
 @lru_cache
-def _mongo_client():
-    return MongoClient(settings.mongodb_uri)
+def mongo_client() -> MongoClient:
+    client: MongoClient = MongoClient(settings.mongodb_uri)
+    registry.register("mongo", client.close)        # lifespan 종료 시 ResourceRegistry 가 닫음
+    return client
 
-@lru_cache
-def _mongo_collection():
-    return _mongo_client()[settings.mongodb_db_name][settings.mongodb_collection_name]
+def mongo_collection() -> Collection:
+    return mongo_client()[settings.mongodb_db_name][settings.mongodb_collection_name]
 
-@atexit.register
-def _close_mongo_client():
-    if _mongo_client.cache_info().currsize:
-        _mongo_client().close()
+# backend/adapters/gateways/lab_mongo.py — 컬렉션을 생성자로 주입받는 포트 구현
+class MongoLabRecordRepository(LabRecordRepository):
+    source: ClassVar[str] = "mongodb"
+    def __init__(self, collection: Collection) -> None:
+        self._collection = collection
 ```
 
-`lru_cache`로 앱 수명 동안 단일 `MongoClient` 인스턴스를 유지하고, `atexit`으로 종료 시 커넥션 풀을 정리합니다.
+`lru_cache`로 앱 수명 동안 단일 `MongoClient` 인스턴스를 유지하고, `main.py` 의 lifespan 종료 시 `registry.close_all()` 이 커넥션 풀을 정리합니다.
 
 #### 주요 작업 패턴
 
@@ -534,7 +826,7 @@ APP_WEAVIATE_URL=http://localhost:8080
 APP_WEAVIATE_COLLECTION_NAME=LabVectors
 ```
 
-> `APP_VECTOR_PROVIDER` 값으로 `pinecone` 또는 `weaviate` 중 하나를 선택합니다.
+> `APP_VECTOR_PROVIDER` 값으로 `pinecone` · `weaviate` · `qdrant` 중 하나를 선택합니다. 선택은 `adapters/api/deps.py` 의 `VECTOR_STORE_FACTORIES` 전략 테이블이 담당하고, 라우터와 `VectorUseCase` 는 provider 를 모릅니다.
 
 ---
 
@@ -645,15 +937,15 @@ APP_NEO4J_GRAPH_NAME=lab_graph
 #### 연결 및 저장 방식
 
 ```python
-# backend/api/lab_router.py
-import redis
-
+# backend/infrastructure/clients.py
 @lru_cache
-def _redis_client():
-    return redis.from_url(settings.redis_url, decode_responses=True)
+def redis_client() -> redis.Redis:
+    return redis.from_url(settings.redis_url, decode_responses=True)   # str 로 받아 json.loads 에 바로 전달
 
-# key = "lab_record:{id}", value = JSON 문자열
-client.set(f"{settings.redis_key_prefix}{data['id']}", json.dumps(data))
+# backend/adapters/gateways/lab_redis.py — key = "lab_record:{id}", value = JSON 문자열
+def add(self, record: LabRecord) -> LabRecord:
+    self._client.set(self._key(record.id), json.dumps(record.to_dict(), ensure_ascii=False))
+    return record
 ```
 
 목록 조회는 `SCAN MATCH "lab_record:*"` 로 키를 모은 뒤 `MGET` 으로 일괄 조회합니다 (`KEYS` 는 블로킹이라 프로덕션에서 지양).
@@ -891,40 +1183,43 @@ cp .env.example .env
 ## 프로젝트 구조
 
 ```
-grid-lab/
+multi-db-lab/
 ├── backend/
-│   ├── main.py              # FastAPI 앱 진입점 (frontend/ 정적 파일 마운트 포함)
-│   ├── config/
-│   │   ├── settings.py      # 전체 환경변수 정의
-│   │   └── database.py      # SQLAlchemy + DynamoDB 팩토리
-│   ├── models/
-│   │   ├── user.py          # User ORM 모델
-│   │   ├── post.py          # Post ORM 모델
-│   │   ├── employee.py      # Employee Pydantic 모델
-│   │   ├── lab.py           # Lab/Vector/Graph Pydantic 모델
-│   │   └── schemas.py       # 인증·게시글 Pydantic 스키마
-│   ├── repositories/
-│   │   ├── user_repository.py
-│   │   ├── post_repository.py
-│   │   └── employee_repository.py
-│   ├── services/
-│   │   ├── auth_service.py
-│   │   ├── post_service.py
-│   │   └── employee_service.py
-│   └── api/
-│       ├── auth_router.py       # /api/auth/*
-│       ├── post_router.py       # /api/posts/*
-│       ├── employee_router.py   # /employees/*
-│       └── lab_router.py        # /lab/*
+│   ├── main.py                  # 조립 지점 (lifespan · CORS · 라우터 · 에러 핸들러 · 시드 · frontend/ 마운트)
+│   ├── domain/                  # ① Entities
+│   │   ├── entities.py          #    LabRecord · LabRecordPatch · Employee · User · Post · VectorMatch · GraphNode …
+│   │   ├── exceptions.py        #    DomainError 계층
+│   │   └── ports.py             #    ABC 포트 (LabRecordRepository · VectorStore · GraphStore · PasswordHasher · TokenProvider …)
+│   ├── usecases/                # ② Use Cases
+│   │   ├── lab_record_usecase.py · vector_usecase.py · graph_usecase.py
+│   │   └── employee_usecase.py · post_usecase.py · auth_usecase.py
+│   ├── adapters/                # ③ Interface Adapters
+│   │   ├── gateways/            #    lab_mongo · lab_postgres · lab_supabase · lab_redis · lab_opensearch
+│   │   │                        #    lab_clickhouse · lab_cassandra · vector_stores · graph_neo4j
+│   │   │                        #    employee_dynamodb · sql_repositories
+│   │   ├── security/            #    bcrypt_hasher · jwt_token_provider
+│   │   └── api/
+│   │       ├── schemas/         #    auth · post · employee · lab (pydantic)
+│   │       ├── presenters.py · error_handlers.py · deps.py
+│   │       └── auth_router.py · post_router.py · employee_router.py · lab_router.py
+│   └── infrastructure/          # ④ Frameworks & Drivers
+│       ├── settings.py · orm.py · clients.py
+├── tests/
+│   ├── fakes.py                 # 포트의 인메모리 구현 (테스트 더블)
+│   ├── test_domain.py           # 불변성 · JSON 왕복 · 예외 체이닝 · ABC 강제
+│   ├── test_usecases.py         # DB 없는 비즈니스 규칙 테스트
+│   └── test_architecture.py     # import 방향 검사
 ├── frontend/
-│   ├── index.html            # 게시글 CRUD 탭 + 멀티 DB 엔진(Canvas) 탭
+│   ├── index.html               # 게시글 CRUD 탭 + 멀티 DB 엔진(Canvas) 탭
 │   └── assets/
-│       ├── app.js            # 게시글 CRUD 로직
-│       └── engine.js         # Canvas 기반 멀티 DB 엔진 로직
-├── main.py                  # 레거시 호환용 엔트리포인트
+│       ├── app.js               # 게시글 CRUD 로직
+│       └── engine.js            # Canvas 기반 멀티 DB 엔진 로직
+├── main.py                      # 레거시 호환용 엔트리포인트
+├── mypy.ini                     # 정적 타입 검사 설정
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
+├── requirements-dev.txt         # pytest · mypy
 └── .env.example
 ```
 
