@@ -86,6 +86,13 @@ const USE_CASES = [
     desc: "캔버스에서 DB 노드를 Grid 에 연결하면 각 저장소의 레코드를 가져와 합쳐 보여줍니다. 구조가 다른 DB(Employee/Vector/Graph) 는 연결되지 않습니다.",
     docs: ["tech010", "tech004", "tech011"],
   },
+  {
+    key: "docs", panel: "docs", icon: "fa-solid fa-book-open", color: "bg-brand-100 text-brand-700", label: "기술 문서", category: "학습 자료",
+    title: "기술 문서 — 이 프로젝트에 쓰인 파이썬 중급 문법 18 편", endpoint: "/api/docs/tech",
+    useCase: "사용 사례: 코드를 읽다가 막히는 문법을 바로 찾아보는 학습 노트",
+    desc: "각 문서는 \"쉽게 이해하기\" 상자(한 줄 요약 · 비유 · 이 프로젝트에서는 · 기억할 것) 로 시작합니다. 왼쪽 목록에서 고르거나, DB 메뉴의 \"관련 기술 문서\" 칩으로 바로 열 수 있습니다.",
+    docs: [],
+  },
 ];
 
 const UC_KEY = "useCaseKey";
@@ -154,6 +161,7 @@ function buildNav() {
     ["키-값 · 서버리스", ["dynamodb"]],
     ["벡터 · 그래프", ["vector", "graph"]],
     ["통합", ["engine"]],
+    ["학습 자료", ["docs"]],
   ];
   groups.forEach(([heading, keys]) => {
     const h = document.createElement("div");
@@ -185,12 +193,13 @@ function renderHeader(uc) {
   $("ucDesc").textContent = uc.desc;
   const docs = $("ucDocs");
   docs.innerHTML = "";
+  docs.parentElement.classList.toggle("hidden", uc.docs.length === 0);
   uc.docs.forEach((docId) => {
     const chip = document.createElement("button");
     chip.className = "chip";
     chip.innerHTML = `<i class="fa-regular fa-file-lines"></i><span>${(window.docTitle && window.docTitle(docId)) || docId}</span>`;
     chip.dataset.doc = docId;
-    chip.onclick = () => window.openDoc && window.openDoc(docId);
+    chip.onclick = () => window.openDocInContent && window.openDocInContent(docId);
     docs.appendChild(chip);
   });
 }
@@ -216,6 +225,7 @@ function selectUseCase(key) {
   if (uc.panel === "employees") loadEmployees();
   if (uc.panel === "vector") $("vecProvider").textContent = "";
   if (uc.panel === "engine" && typeof window.ensureEngine === "function") window.ensureEngine();
+  if (uc.panel === "docs" && typeof window.showDocsPanel === "function") window.showDocsPanel();
 }
 
 // ---------------------------------------------------------------------------

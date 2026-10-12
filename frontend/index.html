@@ -60,6 +60,11 @@
       .doc-body th, .doc-body td { @apply border border-slate-200 px-3 py-1.5 text-left align-top; }
       .doc-body th { @apply bg-slate-50 font-semibold; }
       .doc-body blockquote { @apply border-l-4 border-slate-300 pl-4 text-slate-600 my-3; }
+      .doc-body blockquote.easy-callout { @apply border-0 bg-brand-50 rounded-2xl px-5 py-4 my-0 mb-6 text-slate-700 ring-1 ring-brand-200; }
+      .doc-body blockquote.easy-callout > p:first-child { @apply text-brand-900 font-bold text-base mt-0 mb-2 flex items-center gap-2; }
+      .doc-body blockquote.easy-callout ul { @apply list-none pl-0 my-0 space-y-1.5; }
+      .doc-body blockquote.easy-callout li { @apply leading-7 pl-0; }
+      .doc-body blockquote.easy-callout li strong { @apply inline-block text-xs font-semibold text-brand-700 bg-white border border-brand-200 rounded-md px-1.5 py-0.5 mr-1 align-middle; }
       .doc-body hr { @apply my-6 border-slate-200; }
       .doc-body a { @apply text-brand-600 underline; }
       .doc-body strong { @apply font-semibold text-slate-900; }
@@ -104,7 +109,7 @@
         </div>
         <div class="ml-auto flex items-center gap-2">
           <span id="me" class="text-sm text-slate-600 hidden sm:inline-flex items-center gap-1.5"><i class="fa-regular fa-user"></i><span></span></span>
-          <button id="btnDocs" class="btn-dark"><i class="fa-solid fa-book-open"></i> 기술 문서</button>
+          <button id="btnDocs" class="btn-dark" title="기술 문서 (콘텐츠 영역)"><i class="fa-solid fa-book-open"></i> 기술 문서</button>
           <button id="btnLogout" class="btn-ghost"><i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">로그아웃</span></button>
         </div>
       </div>
@@ -255,6 +260,52 @@
           </div>
           <pre id="graphLog" class="console"></pre>
           <div id="graphGrid" class="ag-theme-alpine grid-box h-[calc(100vh-36rem)] min-h-[260px]"></div>
+        </section>
+
+        <!-- 7) 기술 문서 (콘텐츠 영역) : 좌측 목록 + 우측 본문 -->
+        <section id="panel-docs" class="panel hidden">
+          <div class="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
+            <aside class="card p-3 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] overflow-y-auto">
+              <div class="relative mb-2">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input id="cdocSearch" class="field !pl-8" placeholder="문서 제목 · 요약 검색" />
+              </div>
+              <div id="cdocList" class="space-y-1"></div>
+            </aside>
+            <div class="card min-h-[60vh]">
+              <div id="cdocEmpty" class="px-8 py-10 space-y-6">
+                <div class="flex items-start gap-4">
+                  <div class="w-14 h-14 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center text-2xl shrink-0"><i class="fa-solid fa-graduation-cap"></i></div>
+                  <div>
+                    <h3 class="text-lg font-bold text-slate-900">이 문서들은 무엇인가요?</h3>
+                    <p class="text-sm text-slate-600 leading-7 mt-1">이 프로젝트의 코드에 실제로 쓰인 <b>파이썬 중급 문법 18 가지</b>를 하나씩 설명합니다. 모든 문서는 맨 위에 <b>"쉽게 이해하기"</b> 상자(한 줄 요약 · 비유 · 이 프로젝트에서는 · 기억할 것) 가 있어, 상자만 읽어도 핵심을 잡을 수 있습니다. 그다음 본문에서 실제 코드 위치와 예제를 확인하세요.</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div class="rounded-xl border border-slate-200 p-4"><p class="font-semibold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-1 text-brand-600"></i> 상자부터</p><p class="text-slate-600 mt-1 leading-6">"쉽게 이해하기" 상자의 비유로 감을 잡습니다.</p></div>
+                  <div class="rounded-xl border border-slate-200 p-4"><p class="font-semibold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-2 text-brand-600"></i> 코드로</p><p class="text-slate-600 mt-1 leading-6">본문의 `backend/...` 경로를 열어 실제 코드와 대조합니다.</p></div>
+                  <div class="rounded-xl border border-slate-200 p-4"><p class="font-semibold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-3 text-brand-600"></i> 화면에서</p><p class="text-slate-600 mt-1 leading-6">왼쪽 DB 메뉴의 "관련 기술 문서" 칩으로 사용 사례와 문법을 연결합니다.</p></div>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">추천 읽기 순서</p>
+                  <div id="cdocOrder" class="flex flex-wrap gap-1.5"></div>
+                </div>
+              </div>
+              <div id="cdocReader" class="hidden">
+                <div class="flex items-center gap-2 px-6 py-3 border-b border-slate-200 bg-slate-50/95 backdrop-blur rounded-t-2xl sticky top-16 z-10">
+                  <button id="cdocHome" class="btn-icon" title="안내로"><i class="fa-solid fa-house"></i></button>
+                  <span id="cdocGroup" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600"></span>
+                  <h3 id="cdocTitle" class="font-bold truncate"></h3>
+                  <div class="ml-auto flex items-center gap-1">
+                    <button id="cdocPrev" class="btn-ghost !text-xs" title="이전 문서"><i class="fa-solid fa-chevron-left"></i> 이전</button>
+                    <button id="cdocNext" class="btn-ghost !text-xs" title="다음 문서">다음 <i class="fa-solid fa-chevron-right"></i></button>
+                    <button id="cdocSide" class="btn-ghost !text-xs" title="사이드 패널로 띄워 다른 화면과 함께 보기"><i class="fa-solid fa-table-columns"></i> 옆에 띄우기</button>
+                  </div>
+                </div>
+                <article id="cdocContent" class="doc-body px-8 2xl:px-12 py-6 text-[15px] max-w-5xl"></article>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- 6) 멀티 DB 엔진 (캔버스) -->

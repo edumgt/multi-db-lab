@@ -63,12 +63,22 @@ def _doc_path(doc_id: str) -> Path:
     return PROJECT_ROOT / f"{doc_id}.md"
 
 
+_EASY_SUMMARY = re.compile(r"^>\s*-\s*\*\*한 줄 요약\*\*\s*[—-]\s*(.+)$")
+
+
 def _first_line(text: str) -> str:
+    """목록용 요약. 맨 위 '쉽게 이해하기' 상자의 '한 줄 요약' 이 있으면 그것을, 없으면 인용문이 아닌 첫 문장을 씁니다."""
+    fallback = ""
     for line in text.splitlines():
+        matched = _EASY_SUMMARY.match(line.strip())
+        if matched:
+            return matched.group(1).strip()
+        if line.lstrip().startswith(">"):
+            continue
         stripped = line.strip().lstrip("#").strip()
-        if stripped:
-            return stripped
-    return ""
+        if stripped and not fallback:
+            fallback = stripped
+    return fallback
 
 
 def _summary_of(doc_id: str, text: str) -> TechDocSummary:

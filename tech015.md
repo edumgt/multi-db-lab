@@ -1,3 +1,10 @@
+> **쉽게 이해하기**
+>
+> - **한 줄 요약** — 파이썬 코드를 '문법 트리' 로 읽어서, 프로그램이 코드를 검사할 수 있게 합니다.
+> - **비유하면** — 문장을 주어 · 동사 · 목적어로 나누는 문법 분석. 글자 검색(정규식) 은 주석 속 단어까지 잡지만 AST 는 진짜 import 만 봅니다.
+> - **이 프로젝트에서는** — `tests/test_architecture.py` 가 모든 파일의 import 를 읽어 '도메인이 fastapi 를 import 하면 실패' 를 자동 검사합니다.
+> - **기억할 것** — `ast.parse` → `ast.walk` → `isinstance(node, ast.Import | ast.ImportFrom)` 세 단계면 됩니다.
+
 `ast` 모듈은 파이썬 소스 코드를 **추상 구문 트리(Abstract Syntax Tree)** 로 파싱해 프로그램이 코드를 분석할 수 있게 합니다. 이 프로젝트는 `tests/test_architecture.py` 에서 **계층 간 import 방향** 을 자동 검사하는 데 사용합니다.
 
 ---

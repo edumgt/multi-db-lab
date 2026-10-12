@@ -1,3 +1,10 @@
+> **쉽게 이해하기**
+>
+> - **한 줄 요약** — 타입 힌트를 '실행 시 검증 규칙' 으로 바꾸는 라이브러리입니다. pydantic-settings 는 같은 방식으로 환경변수를 읽습니다.
+> - **비유하면** — 공항 보안검색대. 밖에서 들어오는 요청(HTTP) 과 설정(환경변수) 은 여기서만 검사하고, 안쪽(도메인) 은 다시 검사하지 않습니다.
+> - **이 프로젝트에서는** — `schemas/` 의 `LabRecordCreate` (`Field(min_length=1)`) 와 `settings.py` 의 `APP_` 접두사 환경변수가 전부입니다.
+> - **기억할 것** — 도메인 엔티티는 dataclass, HTTP 경계만 pydantic.
+
 **pydantic** 은 타입 힌트를 **런타임 검증 규칙** 으로 바꾸는 라이브러리이고, **pydantic-settings** 는 같은 원리로 환경변수를 읽습니다. 이 프로젝트는 HTTP 경계(`backend/adapters/api/schemas/`) 와 설정(`backend/infrastructure/settings.py`) 두 곳에서만 pydantic 을 사용합니다 — 도메인은 pydantic 을 모릅니다.
 
 ---

@@ -1,3 +1,10 @@
+> **쉽게 이해하기**
+>
+> - **한 줄 요약** — 인스턴스 메서드(self: 객체 데이터) · classmethod(cls: 대안 생성자) · staticmethod(둘 다 안 씀: 도우미) · property(계산값을 속성처럼) 를 구분합니다.
+> - **비유하면** — 자동차로 치면 '달리다'(self), '공장에서 만들기'(cls), '연비 계산 공식'(static), '현재 속도'(property).
+> - **이 프로젝트에서는** — `Post.create(...)` classmethod 가 기본값을 채워 엔티티를 만들고, `settings.allowed_origin_list` property 가 문자열 설정을 리스트로 바꿉니다.
+> - **기억할 것** — property 는 가볍고 부작용 없는 계산에만 씁니다.
+
 파이썬 클래스의 **메서드 종류 세 가지(인스턴스 · `@classmethod` · `@staticmethod`)** 와 **`@property`** 는 "이 메서드가 무엇에 접근하는가" 를 선언하는 장치입니다. 이 프로젝트의 엔티티 · 유스케이스 · 게이트웨이에서 각각 쓰이는 자리가 다릅니다.
 
 ---
