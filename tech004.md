@@ -13,37 +13,139 @@
 
 ### 1. ABC (추상 클래스) — "계약서에 서명하고 들어오세요"
 
-`abc.ABC`를 상속받고 `@abstractmethod`를 붙이면, 해당 메서드를 구현하지 않은 자식 클래스는 **인스턴스(객체)를 만드는 순간 바로 에러**(`TypeError`)를 냅니다.
+**ABC** 는 *Abstract Base Class* (추상 기반 클래스) 의 약자입니다. 표준 라이브러리 `abc` 모듈이 제공하며, 핵심은 두 가지입니다.
 
-* **특징**: "나는 이 규칙을 지킵니다"라고 **상속(`class MongoRepo(LabRecordRepository):`)으로 명시**해야 합니다. (명목적 서브타이핑)
+1. `abc.ABC` 를 **상속** 한다 → "이 클래스는 계약서다" 라고 선언
+2. 메서드에 `@abstractmethod` 를 붙인다 → "자식은 이 메서드를 반드시 직접 구현해라" 라고 명시
+
+이 두 조건을 갖춘 클래스는 **직접 인스턴스를 만들 수 없고**, 추상 메서드를 하나라도 빠뜨린 자식 클래스도 **인스턴스를 만드는 순간 `TypeError`** 를 냅니다.
+
+* **특징**: "나는 이 규칙을 지킵니다" 라고 **상속(`class MongoRepo(LabRecordRepository):`)으로 명시**해야 합니다. (명목적 서브타이핑 — 이름(상속 관계)으로 타입을 판정)
 
 ```python
 # backend/domain/ports.py (규칙 정의)
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 class LabRecordRepository(ABC):
+    """LabRecord CRUD 계약."""
+
+    #: 응답의 `source` 필드에 노출되는 저장소 이름. 각 구현체가 반드시 덮어씁니다.
+    source: ClassVar[str] = "unknown"
+
     @abstractmethod
     def add(self, record: LabRecord) -> LabRecord:
-        """새 레코드를 저장합니다. (자식 클래스는 반드시 이 함수를 만들어야 함!)"""
-        ...
+        """레코드를 저장하고 저장된 모습을 돌려줍니다."""
 
     @abstractmethod
     def list(self, limit: int) -> list[LabRecord]:
-        """목록을 조회합니다."""
-        ...
+        """최대 limit 건을 돌려줍니다."""
+
+    @abstractmethod
+    def update(self, record_id: str, patch: LabRecordPatch) -> LabRecord | None:
+        """부분 수정. 대상이 없으면 None."""
+
+    @abstractmethod
+    def delete(self, record_id: str) -> bool:
+        """삭제 성공 여부."""
+```
+
+이 계약을 지키는 구현체는 `backend/adapters/gateways/` 에 7개 있습니다 (`MongoLabRecordRepository`, `RedisLabRecordRepository`, `ClickHouseLabRecordRepository` …). 모두 **같은 네 메서드**를 구현했기 때문에 유스케이스 입장에서는 어떤 DB 인지 구분할 필요가 없습니다.
+
+```python
+# backend/adapters/gateways/lab_mongo.py (계약 이행)
+class MongoLabRecordRepository(LabRecordRepository):
+    source: ClassVar[str] = "mongodb"      # ← 클래스 속성도 덮어쓴다
+
+    def add(self, record: LabRecord) -> LabRecord: ...
+    def list(self, limit: int) -> list[LabRecord]: ...
+    def update(self, record_id: str, patch: LabRecordPatch) -> LabRecord | None: ...
+    def delete(self, record_id: str) -> bool: ...
 ```
 
 #### 🛡️ ABC의 강력한 장점: 실수 방지
 만약 깜빡하고 `list()` 메서드를 구현하지 않았다면?
 ```python
 class IncompleteRepo(LabRecordRepository):
-    def add(self, record): 
+    def add(self, record):
         return record
-    # list 메서드를 깜빡하고 안 만듦!
+    # list · update · delete 를 깜빡하고 안 만듦!
 
-repo = IncompleteRepo()  # 💥 실행 즉시 TypeError 발생! "list가 구현 안 됐습니다"
+repo = IncompleteRepo()
+# 💥 TypeError: Can't instantiate abstract class IncompleteRepo
+#    without an implementation for abstract methods 'delete', 'list', 'update'
+#    (파이썬 3.11 이하: "... with abstract methods delete, list, update")
 ```
-코드를 실제로 돌려보기 전에 빠진 기능을 확실하게 잡아줍니다.
+에러 메시지에 **빠진 메서드 이름이 전부** 나오므로 무엇을 더 만들어야 하는지 바로 알 수 있습니다.
+`add()` 를 호출해 보기도 전에, 객체를 만드는 시점(보통 앱 기동 시점)에 잡히는 것이 핵심입니다.
+
+이 동작은 `tests/test_domain.py` 의 `test_abc_forces_full_implementation` 테스트가 실제로 검증합니다.
+
+```python
+def test_abc_forces_full_implementation() -> None:
+    class Incomplete(LabRecordRepository):
+        def add(self, record):
+            return record
+
+    with pytest.raises(TypeError):
+        Incomplete()  # list/update/delete 미구현 → 인스턴스화 불가
+```
+
+#### ⚙️ 내부 동작: 어떻게 알아채나요?
+* `abc.ABC` 는 메타클래스 `ABCMeta` 를 쓰는 빈 클래스입니다. 클래스가 만들어질 때 `ABCMeta` 가 `@abstractmethod` 붙은 이름을 모아 `__abstractmethods__` 라는 **frozenset** 에 기록합니다.
+* 자식 클래스가 그 이름을 **재정의하면 집합에서 빠지고**, 집합이 비어 있어야 인스턴스를 만들 수 있습니다.
+* `IncompleteRepo.__abstractmethods__` 를 출력하면 `frozenset({'list', 'update', 'delete'})` 처럼 **아직 남은 숙제** 를 직접 볼 수 있습니다.
+
+#### 📌 자주 헷갈리는 포인트
+| 상황 | 결과 |
+|---|---|
+| `LabRecordRepository()` 처럼 추상 클래스를 직접 생성 | `TypeError` — 추상 클래스는 "틀" 이지 "물건" 이 아님 |
+| 자식이 일부만 구현하고, 손자가 나머지를 구현 | 자식은 여전히 추상(생성 불가), **손자부터** 생성 가능 |
+| 메서드 이름은 같지만 인자가 다르게 구현 | ABC 는 **이름만** 확인하므로 통과함 → 시그니처 검사는 `mypy` 가 담당 |
+| `@abstractmethod` 는 붙였지만 `ABC` 를 상속하지 않음 | 아무 효과 없음 — 데코레이터만으로는 강제되지 않음 |
+| 추상 메서드가 **하나도 없는** `ABC` 자식 | 그냥 일반 클래스처럼 생성 가능 |
+
+#### 🧩 추상 클래스에도 "일반 메서드" 를 둘 수 있습니다
+ABC 는 전부 비어 있어야 하는 것이 아닙니다. 공통 로직을 부모에 한 번만 두고, 다른 부분만 자식이 채우는 **템플릿 메서드** 패턴에 자주 쓰입니다.
+
+```python
+class LabRecordRepository(ABC):
+    @abstractmethod
+    def list(self, limit: int) -> list[LabRecord]: ...
+
+    def first(self) -> LabRecord | None:          # 일반 메서드 — 자식이 구현한 list() 를 활용
+        rows = self.list(limit=1)
+        return rows[0] if rows else None
+```
+이 프로젝트의 포트는 "계약은 최소로" 라는 원칙에 따라 추상 메서드만 두었지만, `source: ClassVar[str]` 처럼 **클래스 속성** 으로 공통 규격(저장소 이름)을 선언한 것은 같은 맥락입니다.
+
+#### 🎛️ 다른 데코레이터와 함께 쓰기
+`@abstractmethod` 는 **가장 안쪽(아래)** 에 둡니다.
+```python
+class Port(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str: ...          # 추상 프로퍼티
+
+    @classmethod
+    @abstractmethod
+    def from_env(cls) -> "Port": ...    # 추상 클래스 메서드
+
+    @staticmethod
+    @abstractmethod
+    def validate(raw: str) -> bool: ... # 추상 정적 메서드
+```
+(`abstractproperty` 같은 옛 이름은 더 이상 쓰지 않습니다.)
+
+#### ✅ ABC 는 `isinstance` 와 잘 어울립니다
+```python
+repo = MongoLabRecordRepository(...)
+isinstance(repo, LabRecordRepository)   # True — 상속했으니 당연히
+```
+반대로 상속하지 않은 클래스는 메서드가 전부 같아도 `False` 입니다. 이 "엄격함" 이 ABC 의 장점이자, 외부 라이브러리 객체에는 쓰기 어려운 이유입니다 (3번 Protocol 참고).
+
+#### 🧪 테스트에서의 가치
+`tests/fakes.py` 의 `InMemoryLabRecordRepository` 도 같은 ABC 를 상속합니다. 덕분에 유스케이스 테스트는 **DB 없이** 돌아가고, 포트에 메서드를 하나 추가하면 가짜 객체도 **빠뜨릴 수 없게** 강제됩니다 — 진짜 어댑터와 가짜가 서로 어긋나는 사고를 ABC 가 막아 줍니다.
 
 ---
 

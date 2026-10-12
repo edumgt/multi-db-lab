@@ -1,6 +1,7 @@
 // 기술 문서 — 프로젝트 루트의 techNNN.md 를 /api/docs/tech 로 받아 marked 로 렌더링한다.
-//  * 콘텐츠 영역(panel-docs): 좌측 목록(주제별 그룹 · 검색) + 우측 본문. 기본 보기.
-//  * 우측 offcanvas(docsPanel): "옆에 띄우기" 로 다른 DB 화면과 나란히 볼 때 사용. side · wide · dock 모드.
+//  * 콘텐츠 영역(panel-docs): 본문 전체 폭. 기본 보기.
+//  * 우측 목록 offcanvas(cdocNav): 주제별 그룹 · 검색 목록에서 콘텐츠 영역에 보여 줄 문서를 고른다.
+//  * 우측 문서 offcanvas(docsPanel): "옆에 띄우기" 로 다른 DB 화면과 나란히 볼 때 사용. side · wide · dock 모드.
 // $(), api(), setMessage() 는 app.js 의 전역 헬퍼를 재사용한다.
 
 const DOCS_MODE_KEY = "docsMode";
@@ -26,6 +27,7 @@ const docsState = {
   // 콘텐츠 영역
   contentId: null,
   filter: "",
+  navOpen: false,
 };
 
 window.docTitle = (docId) => docsState.byId[docId]?.title || null;
@@ -87,6 +89,7 @@ function neighbors(docId) {
 function renderContentList() {
   const list = $("cdocList");
   list.innerHTML = "";
+  $("cdocNavCount").textContent = `${docsState.list.length}편`;
   const q = docsState.filter.trim().toLowerCase();
   let shown = 0;
   DOC_GROUPS.forEach((group) => {
@@ -109,11 +112,27 @@ function renderContentList() {
           <span class="font-medium text-sm text-slate-800 truncate">${doc.title}</span>
         </div>
         <p class="text-xs text-slate-500 mt-1 line-clamp-2 pl-[38px]">${doc.summary.replace(/[`*_]/g, "")}</p>`;
-      btn.onclick = () => showDocInContent(doc.id);
+      btn.onclick = () => {
+        showDocInContent(doc.id);
+        cdocNavSetOpen(false);
+      };
       list.appendChild(btn);
     });
   });
   if (!shown) list.innerHTML = '<p class="text-sm text-slate-500 px-3 py-6 text-center">검색 결과가 없습니다.</p>';
+}
+
+// 우측 목록 offcanvas 열기/닫기
+function cdocNavSetOpen(open) {
+  docsState.navOpen = open;
+  $("cdocNav").classList.toggle("translate-x-full", !open);
+  $("cdocNavBackdrop").classList.toggle("hidden", !open);
+  document.body.classList.toggle("overflow-hidden", open || (docsState.open && docsState.mode !== "dock"));
+  if (open) {
+    const active = document.querySelector("#cdocList .doc-item.active");
+    if (active) active.scrollIntoView({ block: "nearest" });
+    setTimeout(() => $("cdocSearch").focus(), 200);
+  }
 }
 
 function renderOrderChips() {
@@ -174,7 +193,10 @@ window.showDocsPanel = async () => {
   await loadDocsList();
   const last = docsState.contentId || localStorage.getItem(DOC_LAST_KEY);
   if (last && docsState.byId[last]) showDocInContent(last);
-  else showContentHome();
+  else {
+    showContentHome();
+    cdocNavSetOpen(true);
+  }
 };
 
 // "관련 기술 문서" 칩 · 헤더 버튼 → 콘텐츠 영역에서 연다
@@ -203,7 +225,7 @@ function applyPanelLayout() {
   if (!overlay && !docsState.open) cls += " hidden";
   panel.className = cls;
   $("docsBackdrop").classList.toggle("hidden", !(overlay && docsState.open));
-  document.body.classList.toggle("overflow-hidden", overlay && docsState.open);
+  document.body.classList.toggle("overflow-hidden", (overlay && docsState.open) || docsState.navOpen);
   ["side", "wide", "dock"].forEach((mode) => {
     const btn = $(`docsMode${mode[0].toUpperCase()}${mode.slice(1)}`);
     btn.classList.toggle("text-brand-600", docsState.mode === mode);
@@ -306,6 +328,10 @@ $("cdocSearch").oninput = (event) => {
   renderContentList();
 };
 $("cdocHome").onclick = showContentHome;
+$("cdocOpenNav").onclick = () => cdocNavSetOpen(true);
+$("cdocOpenNavHome").onclick = () => cdocNavSetOpen(true);
+$("cdocNavClose").onclick = () => cdocNavSetOpen(false);
+$("cdocNavBackdrop").onclick = () => cdocNavSetOpen(false);
 $("cdocPrev").onclick = () => {
   const { prev } = neighbors(docsState.contentId);
   if (prev) showDocInContent(prev.id);
@@ -323,8 +349,15 @@ $("docsModeSide").onclick = () => docsSetMode("side");
 $("docsModeWide").onclick = () => docsSetMode("wide");
 $("docsModeDock").onclick = () => docsSetMode("dock");
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && docsState.open && docsState.mode !== "dock") docsSetOpen(false);
+  if (event.key !== "Escape") return;
+  if (docsState.navOpen) cdocNavSetOpen(false);
+  else if (docsState.open && docsState.mode !== "dock") docsSetOpen(false);
 });
+
+// 다른 메뉴로 이동하면 목록 offcanvas 는 닫는다 (usecases.js 가 호출)
+window.closeDocsNav = () => {
+  if (docsState.navOpen) cdocNavSetOpen(false);
+};
 
 // 로그인 직후 usecases.js 가 호출 — 칩 라벨용으로 목록을 미리 받아 둔다.
 window.preloadDocs = loadDocsList;

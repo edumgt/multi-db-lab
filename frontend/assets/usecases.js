@@ -226,6 +226,7 @@ function selectUseCase(key) {
   if (uc.panel === "vector") $("vecProvider").textContent = "";
   if (uc.panel === "engine" && typeof window.ensureEngine === "function") window.ensureEngine();
   if (uc.panel === "docs" && typeof window.showDocsPanel === "function") window.showDocsPanel();
+  else if (typeof window.closeDocsNav === "function") window.closeDocsNav();
 }
 
 // ---------------------------------------------------------------------------
