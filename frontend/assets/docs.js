@@ -1,10 +1,9 @@
 // 기술 문서 — 프로젝트 루트의 techNNN.md 를 /api/docs/tech 로 받아 marked 로 렌더링한다.
-//  * 콘텐츠 영역(panel-docs): 본문 전체 폭. 기본 보기.
-//  * 우측 목록 offcanvas(cdocNav): 주제별 그룹 · 검색 목록에서 콘텐츠 영역에 보여 줄 문서를 고른다.
-//  * 우측 문서 offcanvas(docsPanel): "옆에 띄우기" 로 다른 DB 화면과 나란히 볼 때 사용. side · wide · dock 모드.
+//  * 콘텐츠 영역(panel-docs): 본문 전체 폭.
+//  * 우측 목록 offcanvas(cdocNav): 헤더 "기술 문서" 버튼 · 리더의 "목록" 버튼이 연다.
+//    어느 화면에서든 열 수 있고, 문서를 고르면 기술 문서 화면으로 전환되어 본문이 표시된다.
 // $(), api(), setMessage() 는 app.js 의 전역 헬퍼를 재사용한다.
 
-const DOCS_MODE_KEY = "docsMode";
 const DOC_LAST_KEY = "docsLastId";
 
 // 주제별 그룹 — 읽기 순서 추천에도 그대로 사용
@@ -20,11 +19,6 @@ const docsState = {
   byId: {},
   cache: {},
   loaded: false,
-  // offcanvas
-  open: false,
-  mode: localStorage.getItem(DOCS_MODE_KEY) || "side",
-  currentId: null,
-  // 콘텐츠 영역
   contentId: null,
   filter: "",
   navOpen: false,
@@ -47,12 +41,10 @@ async function loadDocsList() {
     docsState.byId = {};
     list.forEach((doc) => (docsState.byId[doc.id] = doc));
     docsState.loaded = true;
-    renderDocsList();
     renderContentList();
     renderOrderChips();
     if (window.refreshDocChips) window.refreshDocChips();
   } catch (error) {
-    setMessage("docsMsg", `문서 목록을 불러오지 못했습니다: ${error.message}`);
     setMessage("appMsg", `문서 목록을 불러오지 못했습니다: ${error.message}`);
   }
 }
@@ -113,8 +105,8 @@ function renderContentList() {
         </div>
         <p class="text-xs text-slate-500 mt-1 line-clamp-2 pl-[38px]">${doc.summary.replace(/[`*_]/g, "")}</p>`;
       btn.onclick = () => {
-        showDocInContent(doc.id);
         cdocNavSetOpen(false);
+        window.openDocInContent(doc.id);
       };
       list.appendChild(btn);
     });
@@ -127,7 +119,7 @@ function cdocNavSetOpen(open) {
   docsState.navOpen = open;
   $("cdocNav").classList.toggle("translate-x-full", !open);
   $("cdocNavBackdrop").classList.toggle("hidden", !open);
-  document.body.classList.toggle("overflow-hidden", open || (docsState.open && docsState.mode !== "dock"));
+  document.body.classList.toggle("overflow-hidden", open);
   if (open) {
     const active = document.querySelector("#cdocList .doc-item.active");
     if (active) active.scrollIntoView({ block: "nearest" });
@@ -202,127 +194,21 @@ window.showDocsPanel = async () => {
 // "관련 기술 문서" 칩 · 헤더 버튼 → 콘텐츠 영역에서 연다
 window.openDocInContent = async (docId) => {
   if (docId) docsState.contentId = docId;
-  if (typeof selectUseCase === "function") selectUseCase("docs");
+  if (typeof selectUseCase === "function") selectUseCase("docs"); // → showDocsPanel 이 contentId 문서를 표시
   await loadDocsList();
   if (docId) await showDocInContent(docId);
 };
 
-// ---------------------------------------------------------------------------
-// 우측 offcanvas 보기 (옆에 띄우기)
-// ---------------------------------------------------------------------------
-const PANEL_BASE = "bg-white border-l border-slate-200 flex flex-col transition-[transform,width] duration-200";
-const PANEL_MODE = {
-  side: "fixed top-0 right-0 h-full z-50 shadow-2xl w-full sm:w-[640px]",
-  wide: "fixed top-0 right-0 h-full z-50 shadow-2xl w-full lg:w-[1100px] 2xl:w-[1320px]",
-  dock: "sticky top-16 h-[calc(100vh-4rem)] w-full sm:w-[560px] 2xl:w-[760px] shrink-0 z-10",
-};
-
-function applyPanelLayout() {
-  const panel = $("docsPanel");
-  const overlay = docsState.mode !== "dock";
-  let cls = `${PANEL_BASE} ${PANEL_MODE[docsState.mode]}`;
-  if (overlay && !docsState.open) cls += " translate-x-full";
-  if (!overlay && !docsState.open) cls += " hidden";
-  panel.className = cls;
-  $("docsBackdrop").classList.toggle("hidden", !(overlay && docsState.open));
-  document.body.classList.toggle("overflow-hidden", (overlay && docsState.open) || docsState.navOpen);
-  ["side", "wide", "dock"].forEach((mode) => {
-    const btn = $(`docsMode${mode[0].toUpperCase()}${mode.slice(1)}`);
-    btn.classList.toggle("text-brand-600", docsState.mode === mode);
-    btn.classList.toggle("bg-brand-50", docsState.mode === mode);
-  });
-}
-
-function docsSetOpen(open) {
-  docsState.open = open;
-  applyPanelLayout();
-}
-
-function docsSetMode(mode) {
-  docsState.mode = mode;
-  localStorage.setItem(DOCS_MODE_KEY, mode);
-  applyPanelLayout();
-}
-
-function docsShowList() {
-  docsState.currentId = null;
-  $("docsBack").classList.add("hidden");
-  $("docsHeading").textContent = "기술 문서";
-  $("docsContent").classList.add("hidden");
-  $("docsList").classList.remove("hidden");
-  document.querySelectorAll("#docsList .doc-item").forEach((el) => el.classList.remove("active"));
-}
-
-function renderDocsList() {
-  const list = $("docsList");
-  list.innerHTML = "";
-  $("docsCount").textContent = `${docsState.list.length}편`;
-  DOC_GROUPS.forEach((group) => {
-    const h = document.createElement("div");
-    h.className = "nav-group flex items-center gap-1.5";
-    h.innerHTML = `<i class="${group.icon}"></i> ${group.name}`;
-    list.appendChild(h);
-    group.ids.forEach((id) => {
-      const doc = docsState.byId[id];
-      if (!doc) return;
-      const btn = document.createElement("button");
-      btn.className = "doc-item";
-      btn.dataset.doc = doc.id;
-      btn.innerHTML = `
-        <div class="flex items-center gap-2.5">
-          <span class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 text-[11px] font-mono flex items-center justify-center shrink-0">${doc.id.slice(-2)}</span>
-          <span class="font-medium text-sm text-slate-800 truncate">${doc.title}</span>
-          <i class="fa-solid fa-chevron-right text-xs text-slate-300 ml-auto"></i>
-        </div>`;
-      btn.onclick = () => showDoc(doc.id);
-      list.appendChild(btn);
-    });
-  });
-}
-
-async function showDoc(docId) {
-  setMessage("docsMsg");
-  $("docsBack").classList.remove("hidden");
-  $("docsList").classList.add("hidden");
-  const content = $("docsContent");
-  content.classList.remove("hidden");
-  content.innerHTML = '<p class="text-slate-400"><i class="fa-solid fa-spinner fa-spin"></i> 불러오는 중…</p>';
-  docsState.currentId = docId;
-  document.querySelectorAll("#docsList .doc-item").forEach((el) => el.classList.toggle("active", el.dataset.doc === docId));
-  try {
-    const doc = await fetchDoc(docId);
-    if (docsState.currentId !== docId) return;
-    $("docsHeading").textContent = `${doc.id} · ${doc.title}`;
-    content.innerHTML = `<div class="max-w-4xl mx-auto">${renderMarkdown(doc.content)}</div>`;
-    content.scrollTop = 0;
-    const { prev, next } = neighbors(docId);
-    const navBar = document.createElement("div");
-    navBar.className = "max-w-4xl mx-auto flex justify-between gap-2 mt-8 pt-4 border-t border-slate-200 text-xs";
-    navBar.innerHTML = `
-      <button ${prev ? "" : "disabled"} class="btn-ghost !text-xs"><i class="fa-solid fa-chevron-left"></i> ${prev ? prev.title : ""}</button>
-      <button ${next ? "" : "disabled"} class="btn-ghost !text-xs">${next ? next.title : ""} <i class="fa-solid fa-chevron-right"></i></button>`;
-    const [prevBtn, nextBtn] = navBar.querySelectorAll("button");
-    if (prev) prevBtn.onclick = () => showDoc(prev.id);
-    if (next) nextBtn.onclick = () => showDoc(next.id);
-    content.appendChild(navBar);
-  } catch (error) {
-    content.innerHTML = "";
-    setMessage("docsMsg", `문서를 불러오지 못했습니다: ${error.message}`);
-  }
-}
-
-// 외부에서 offcanvas 로 특정 문서를 연다 (콘텐츠 리더의 "옆에 띄우기")
-window.openDoc = async (docId) => {
-  docsSetOpen(true);
+// 헤더 "기술 문서" 버튼 — 어느 화면에서든 우측 목록을 연다
+window.openDocsNav = async () => {
   await loadDocsList();
-  if (docId) await showDoc(docId);
-  else docsShowList();
+  cdocNavSetOpen(true);
 };
 
 // ---------------------------------------------------------------------------
 // 이벤트
 // ---------------------------------------------------------------------------
-$("btnDocs").onclick = () => window.openDocInContent(null);
+$("btnDocs").onclick = () => window.openDocsNav();
 $("cdocSearch").oninput = (event) => {
   docsState.filter = event.target.value;
   renderContentList();
@@ -340,18 +226,8 @@ $("cdocNext").onclick = () => {
   const { next } = neighbors(docsState.contentId);
   if (next) showDocInContent(next.id);
 };
-$("cdocSide").onclick = () => window.openDoc(docsState.contentId);
-
-$("docsClose").onclick = () => docsSetOpen(false);
-$("docsBackdrop").onclick = () => docsSetOpen(false);
-$("docsBack").onclick = docsShowList;
-$("docsModeSide").onclick = () => docsSetMode("side");
-$("docsModeWide").onclick = () => docsSetMode("wide");
-$("docsModeDock").onclick = () => docsSetMode("dock");
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape") return;
-  if (docsState.navOpen) cdocNavSetOpen(false);
-  else if (docsState.open && docsState.mode !== "dock") docsSetOpen(false);
+  if (event.key === "Escape" && docsState.navOpen) cdocNavSetOpen(false);
 });
 
 // 다른 메뉴로 이동하면 목록 offcanvas 는 닫는다 (usecases.js 가 호출)
@@ -361,4 +237,3 @@ window.closeDocsNav = () => {
 
 // 로그인 직후 usecases.js 가 호출 — 칩 라벨용으로 목록을 미리 받아 둔다.
 window.preloadDocs = loadDocsList;
-applyPanelLayout();

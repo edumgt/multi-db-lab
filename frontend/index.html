@@ -109,13 +109,13 @@
         </div>
         <div class="ml-auto flex items-center gap-2">
           <span id="me" class="text-sm text-slate-600 hidden sm:inline-flex items-center gap-1.5"><i class="fa-regular fa-user"></i><span></span></span>
-          <button id="btnDocs" class="btn-dark" title="기술 문서 (콘텐츠 영역)"><i class="fa-solid fa-book-open"></i> 기술 문서</button>
+          <button id="btnDocs" class="btn-dark" title="기술 문서 목록 열기"><i class="fa-solid fa-book-open"></i> 기술 문서</button>
           <button id="btnLogout" class="btn-ghost"><i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">로그아웃</span></button>
         </div>
       </div>
     </header>
 
-    <!-- 본문: [좌측 offcanvas] [콘텐츠] [우측 docs(도킹 모드)] -->
+    <!-- 본문: [좌측 내비게이션] [콘텐츠] + 우측 문서 목록 offcanvas -->
     <div id="shell" class="max-w-[1920px] mx-auto flex items-start relative">
       <!-- 좌측 offcanvas 백드롭 (좁은 화면에서만) -->
       <div id="navBackdrop" class="hidden fixed inset-0 bg-slate-900/40 z-30 xl:hidden"></div>
@@ -294,7 +294,6 @@
                     <button id="cdocPrev" class="btn-ghost !text-xs" title="이전 문서"><i class="fa-solid fa-chevron-left"></i> 이전</button>
                     <button id="cdocNext" class="btn-ghost !text-xs" title="다음 문서">다음 <i class="fa-solid fa-chevron-right"></i></button>
                     <button id="cdocOpenNav" class="btn-ghost !text-xs" title="우측 목록에서 문서 선택"><i class="fa-solid fa-list"></i> 목록</button>
-                    <button id="cdocSide" class="btn-ghost !text-xs" title="사이드 패널로 띄워 다른 화면과 함께 보기"><i class="fa-solid fa-table-columns"></i> 옆에 띄우기</button>
                   </div>
                 </div>
                 <article id="cdocContent" class="doc-body px-8 2xl:px-12 py-6 text-[15px] max-w-5xl"></article>
@@ -340,27 +339,6 @@
         <div id="cdocList" class="flex-1 overflow-y-auto p-3 space-y-1"></div>
       </aside>
 
-      <!-- 우측 문서 패널: overlay(기본) · wide(확대) · dock(콘텐츠 영역에 도킹) 모드를 docs.js 가 클래스 토글로 전환 -->
-      <div id="docsBackdrop" class="hidden fixed inset-0 bg-slate-900/40 z-40"></div>
-      <aside id="docsPanel"
-        class="bg-white border-l border-slate-200 flex flex-col transition-[transform,width] duration-200
-               fixed top-0 right-0 h-full z-50 shadow-2xl w-full sm:w-[640px] translate-x-full">
-        <div class="flex items-center gap-1.5 px-4 h-14 border-b border-slate-200 shrink-0">
-          <button id="docsBack" class="btn-icon hidden" title="목록"><i class="fa-solid fa-arrow-left"></i></button>
-          <i class="fa-solid fa-book-open text-brand-600"></i>
-          <h2 id="docsHeading" class="font-bold truncate">기술 문서</h2>
-          <span id="docsCount" class="text-xs text-slate-500 shrink-0"></span>
-          <div class="ml-auto flex items-center gap-0.5">
-            <button id="docsModeSide" class="btn-icon" title="사이드 패널"><i class="fa-solid fa-table-columns"></i></button>
-            <button id="docsModeWide" class="btn-icon" title="확대 (넓게)"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>
-            <button id="docsModeDock" class="btn-icon" title="콘텐츠 영역에 도킹"><i class="fa-solid fa-thumbtack"></i></button>
-            <button id="docsClose" class="btn-icon" title="닫기"><i class="fa-solid fa-xmark"></i></button>
-          </div>
-        </div>
-        <div id="docsList" class="flex-1 overflow-y-auto p-3 space-y-1"></div>
-        <article id="docsContent" class="hidden flex-1 overflow-y-auto px-6 2xl:px-8 py-5 doc-body text-[15px]"></article>
-        <p id="docsMsg" class="text-xs text-rose-600 px-4 py-2 border-t border-slate-200 min-h-8 shrink-0"></p>
-      </aside>
     </div>
   </section>
 
