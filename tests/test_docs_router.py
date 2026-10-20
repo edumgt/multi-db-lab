@@ -1,4 +1,4 @@
-"""docs_router — techNNN.md 목록/본문 제공과 경로 탐색 차단을 검증합니다 (DB 불필요)."""
+"""docs_router — docs/techNNN.md 목록/본문 제공과 경로 탐색 차단을 검증합니다 (DB 불필요)."""
 
 from __future__ import annotations
 

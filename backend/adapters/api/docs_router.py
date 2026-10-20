@@ -1,5 +1,5 @@
 """
-기술 문서 컨트롤러 — /api/docs/tech/* (프로젝트 루트의 techNNN.md 를 프론트엔드 offcanvas 에 제공)
+기술 문서 컨트롤러 — /api/docs/tech/* (docs/techNNN.md 를 프론트엔드 offcanvas 에 제공)
 
 [Clean Architecture 적용 사례]
   파일 시스템 접근은 Frameworks & Drivers 에 속하므로 어댑터 계층에 둡니다. 없는 문서는 HTTPException 이 아니라
@@ -24,6 +24,7 @@ from backend.domain.exceptions import NotFoundError
 router = APIRouter(prefix="/api/docs", tags=["docs"])
 
 PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parents[3]
+DOCS_DIR: Final[Path] = PROJECT_ROOT / "docs"
 _DOC_ID_PATTERN: Final = re.compile(r"tech\d{3}")
 
 # 문서 제목 — 메뉴 표시용. 목록에 없는 파일은 첫 줄을 잘라 제목으로 씁니다.
@@ -60,7 +61,7 @@ class TechDocRead(TechDocSummary):
 
 
 def _doc_path(doc_id: str) -> Path:
-    return PROJECT_ROOT / f"{doc_id}.md"
+    return DOCS_DIR / f"{doc_id}.md"
 
 
 _EASY_SUMMARY = re.compile(r"^>\s*-\s*\*\*한 줄 요약\*\*\s*[—-]\s*(.+)$")
@@ -90,7 +91,7 @@ def _summary_of(doc_id: str, text: str) -> TechDocSummary:
 @router.get("/tech", response_model=list[TechDocSummary])
 def list_tech_docs() -> list[TechDocSummary]:
     docs: list[TechDocSummary] = []
-    for path in sorted(PROJECT_ROOT.glob("tech*.md")):
+    for path in sorted(DOCS_DIR.glob("tech*.md")):
         if _DOC_ID_PATTERN.fullmatch(path.stem):
             docs.append(_summary_of(path.stem, path.read_text(encoding="utf-8")))
     return docs

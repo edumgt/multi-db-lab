@@ -1,0 +1,39 @@
+# FastAPI Grid Lab
+
+> Multi-database teaching lab: FastAPI Clean Architecture backend plus a vanilla JS canvas that merges PostgreSQL, MongoDB, DynamoDB, Supabase, Pinecone, Weaviate, Neo4j, Redis, OpenSearch, ClickHouse, Cassandra, and Qdrant into one AG Grid.
+
+Technical notes are Korean markdown under `docs/` and are also served at `/api/docs/tech/{id}`. The English project guide is `readme.md`. The Korean project guide is `readme-kr.md`.
+
+## Guides
+
+- [English guide](readme.md): stack, Clean Architecture map, environment variables, run instructions, and API summary
+- [Korean guide](readme-kr.md): same project guide in Korean
+- [Environment template](.env.example): `APP_` settings for every database client
+
+## Technical notes
+
+- [__init__.py and packages](docs/tech001.md): package marker, facade imports, and what not to put in `__init__.py`
+- [from __future__ import annotations](docs/tech002.md): postponed evaluation and forward references
+- [dataclasses](docs/tech003.md): `frozen`, `slots`, `field`, and `replace` on domain entities
+- [ABC and Protocol](docs/tech004.md): ports versus structural typing
+- [Type hints](docs/tech005.md): `Literal`, `Final`, `ClassVar`, `Annotated`, `cast`, and mypy
+- [Exceptions](docs/tech006.md): `try/except/else/finally`, custom hierarchy, and chaining
+- [json](docs/tech007.md): `dumps` / `loads`, `ensure_ascii`, and `JSONDecodeError`
+- [functools](docs/tech008.md): `lru_cache` client singletons and `cached_property`
+- [Context managers](docs/tech009.md): `with`, `@contextmanager`, and FastAPI lifespan
+- [First-class functions](docs/tech010.md): closures, higher-order functions, and strategy tables
+- [Generators and iterators](docs/tech011.md): `yield`, `scan_iter`, and `itertools`
+- [Method kinds](docs/tech012.md): `@classmethod`, `@staticmethod`, `@property`, and naming
+- [Function arguments](docs/tech013.md): keyword-only `*`, unpacking, and `zip`
+- [logging](docs/tech014.md): module loggers, levels, and `logger.exception`
+- [ast](docs/tech015.md): architecture tests that scan import direction
+- [pydantic](docs/tech016.md): boundary validation and pydantic-settings
+- [pytest](docs/tech017.md): `raises`, `parametrize`, fixtures, and test doubles
+- [String formatting](docs/tech018.md): f-string escapes, parameter binding, and encoding
+
+## Optional
+
+- [Requirements](requirements.txt): runtime Python dependencies
+- [Dev requirements](requirements-dev.txt): pytest and mypy
+- [Docker Compose](docker-compose.yml): PostgreSQL plus API on port 8010
+- [Dockerfile](Dockerfile): Python 3.12 image that runs `backend.main:app`

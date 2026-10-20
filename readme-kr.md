@@ -1,5 +1,7 @@
 # FastAPI Grid Lab
 
+> 영문 안내: [readme.md](readme.md) · 기술 노트는 [docs/](docs/) · LLM용 목차: [llms.txt](llms.txt)
+
 FastAPI 백엔드에 **PostgreSQL · MongoDB · DynamoDB · Supabase · Pinecone · Weaviate · Neo4j · Redis · OpenSearch · ClickHouse · Cassandra · Qdrant** 를 통합한 멀티-데이터베이스 실습 프로젝트입니다.  
 프론트엔드는 HTML + 바닐라 JS SPA로 로그인, AG Grid CRUD, 그리고 **Canvas 기반 멀티 DB 엔진**(DB 아이콘을 캔버스에서 Grid 노드에 연결하면 해당 DB의 데이터를 가져와 그리드에 합쳐 보여주는 화면)을 제공합니다.
 
@@ -365,30 +367,30 @@ pytest tests          # 유스케이스 · 도메인 · 아키텍처(의존성 �
 mypy backend          # 정적 타입 검사
 ```
 
-### 기술 노트 (`techNNN.md`)
+### 기술 노트 (`docs/techNNN.md`)
 
-프로젝트 코드에 쓰인 파이썬 기술을 주제별로 정리한 학습 노트입니다. 각 노트는 실제 적용 파일을 인용합니다.
+프로젝트 코드에 쓰인 파이썬 기술을 주제별로 정리한 학습 노트입니다. 루트가 아닌 `docs/` 에 있으며, 각 노트는 실제 적용 파일을 인용합니다.
 
 | 파일 | 주제 |
 |---|---|
-| [tech001.md](tech001.md) | `__init__.py` 와 패키지 |
-| [tech002.md](tech002.md) | `from __future__ import annotations` 와 전방 참조 |
-| [tech003.md](tech003.md) | dataclass — `frozen` · `slots` · `field` · `replace` |
-| [tech004.md](tech004.md) | ABC 와 Protocol — 추상 인터페이스 |
-| [tech005.md](tech005.md) | 타입 힌트 심화 — `Literal` · `Final` · `ClassVar` · `Annotated` · `cast` · mypy |
-| [tech006.md](tech006.md) | 예외 처리 — `try/except/else/finally` · 커스텀 예외 계층 · 체이닝 |
-| [tech007.md](tech007.md) | `json` 모듈 — `dumps` / `loads` · `ensure_ascii` · `JSONDecodeError` |
-| [tech008.md](tech008.md) | `functools` — `lru_cache` 싱글턴 · `cached_property` |
-| [tech009.md](tech009.md) | 컨텍스트 매니저 — `with` · `contextmanager` · lifespan |
-| [tech010.md](tech010.md) | 클로저 · 고차 함수 · 전략 테이블 |
-| [tech011.md](tech011.md) | 제너레이터와 이터레이터 — `yield` · `scan_iter` · `itertools` |
-| [tech012.md](tech012.md) | `@classmethod` · `@staticmethod` · `@property` · 이름 규칙 |
-| [tech013.md](tech013.md) | 인자 전달 — 키워드 전용 `*` · 언패킹 `*` / `**` · `zip` |
-| [tech014.md](tech014.md) | `logging` — 모듈 로거 · 레벨 · `logger.exception` |
-| [tech015.md](tech015.md) | `ast` 모듈 — 아키텍처 테스트로 import 방향 검사 |
-| [tech016.md](tech016.md) | pydantic · pydantic-settings — 경계 검증과 설정 |
-| [tech017.md](tech017.md) | pytest — `raises` · `parametrize` · 픽스처 · 테스트 더블 |
-| [tech018.md](tech018.md) | 문자열 포매팅 — f-string 이스케이프 · 파라미터 바인딩 · 인코딩 |
+| [tech001.md](docs/tech001.md) | `__init__.py` 와 패키지 |
+| [tech002.md](docs/tech002.md) | `from __future__ import annotations` 와 전방 참조 |
+| [tech003.md](docs/tech003.md) | dataclass — `frozen` · `slots` · `field` · `replace` |
+| [tech004.md](docs/tech004.md) | ABC 와 Protocol — 추상 인터페이스 |
+| [tech005.md](docs/tech005.md) | 타입 힌트 심화 — `Literal` · `Final` · `ClassVar` · `Annotated` · `cast` · mypy |
+| [tech006.md](docs/tech006.md) | 예외 처리 — `try/except/else/finally` · 커스텀 예외 계층 · 체이닝 |
+| [tech007.md](docs/tech007.md) | `json` 모듈 — `dumps` / `loads` · `ensure_ascii` · `JSONDecodeError` |
+| [tech008.md](docs/tech008.md) | `functools` — `lru_cache` 싱글턴 · `cached_property` |
+| [tech009.md](docs/tech009.md) | 컨텍스트 매니저 — `with` · `contextmanager` · lifespan |
+| [tech010.md](docs/tech010.md) | 클로저 · 고차 함수 · 전략 테이블 |
+| [tech011.md](docs/tech011.md) | 제너레이터와 이터레이터 — `yield` · `scan_iter` · `itertools` |
+| [tech012.md](docs/tech012.md) | `@classmethod` · `@staticmethod` · `@property` · 이름 규칙 |
+| [tech013.md](docs/tech013.md) | 인자 전달 — 키워드 전용 `*` · 언패킹 `*` / `**` · `zip` |
+| [tech014.md](docs/tech014.md) | `logging` — 모듈 로거 · 레벨 · `logger.exception` |
+| [tech015.md](docs/tech015.md) | `ast` 모듈 — 아키텍처 테스트로 import 방향 검사 |
+| [tech016.md](docs/tech016.md) | pydantic · pydantic-settings — 경계 검증과 설정 |
+| [tech017.md](docs/tech017.md) | pytest — `raises` · `parametrize` · 픽스처 · 테스트 더블 |
+| [tech018.md](docs/tech018.md) | 문자열 포매팅 — f-string 이스케이프 · 파라미터 바인딩 · 인코딩 |
 
 ---
 
@@ -1214,12 +1216,16 @@ multi-db-lab/
 │   └── assets/
 │       ├── app.js               # 게시글 CRUD 로직
 │       └── engine.js            # Canvas 기반 멀티 DB 엔진 로직
+├── docs/                        # 기술 노트 tech001.md–tech018.md
 ├── main.py                      # 레거시 호환용 엔트리포인트
 ├── mypy.ini                     # 정적 타입 검사 설정
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
 ├── requirements-dev.txt         # pytest · mypy
+├── readme.md                    # 영문 안내
+├── readme-kr.md                 # 한글 안내 (이 파일)
+├── llms.txt                     # LLM용 문서 목차
 └── .env.example
 ```
 
