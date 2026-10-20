@@ -1,4 +1,4 @@
-// 기술 문서 — 프로젝트 루트의 techNNN.md 를 /api/docs/tech 로 받아 marked 로 렌더링한다.
+// 기술 문서 — docs/techNNN.md 를 /api/docs/tech 로 받아 marked 로 렌더링한다.
 //  * 콘텐츠 영역(panel-docs): 본문 전체 폭.
 //  * 우측 목록 offcanvas(cdocNav): 헤더 "기술 문서" 버튼 · 리더의 "목록" 버튼이 연다.
 //    어느 화면에서든 열 수 있고, 문서를 고르면 기술 문서 화면으로 전환되어 본문이 표시된다.
